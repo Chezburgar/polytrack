@@ -1,0 +1,17 @@
+{
+  "name": "polytrack",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PolyTrack - a low-poly multiplayer 3D racing game for the browser",
+  "type": "module",
+  "scripts": {
+    "start": "node tools/serve.mjs",
+    "vendor": "node tools/vendor.mjs",
+    "check": "node tools/check.mjs"
+  },
+  "devDependencies": {
+    "peerjs": "1.5.5",
+    "puppeteer-core": "25.11.0",
+    "three": "0.186.0"
+  }
+}

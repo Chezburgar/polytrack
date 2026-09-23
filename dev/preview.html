@@ -1,0 +1,44 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Track preview</title>
+<style>body{margin:0;background:#0b101b;color:#dde;font:12px system-ui} .g{display:grid;grid-template-columns:repeat(var(--cols),1fr);gap:8px;padding:8px} .c{background:#141b2b;padding:6px} canvas{display:block;width:100%} b{font-size:14px}</style>
+<script type="importmap">{"imports":{"three":"../vendor/three/three.module.js","three/addons/":"../vendor/three/addons/"}}</script>
+</head><body><div class="g" id="g"></div>
+<script type="module">
+import { TRACKS } from '../src/track/tracks.js';
+import { buildTrack } from '../src/track/builder.js';
+import { drawTrack } from '../src/ui/trackmap.js';
+const q = new URLSearchParams(location.search);
+const ids = q.get('ids') ? q.get('ids').split(',') : null;
+const cols = +(q.get('cols') || 4);
+document.body.style.setProperty('--cols', cols);
+const list = TRACKS.filter((t) => !ids || ids.includes(t.id));
+for (const def of list) {
+  const div = document.createElement('div'); div.className = 'c';
+  let t;
+  try { t = buildTrack(def); } catch (e) { div.textContent = def.id + ': ' + e.message; g.append(div); continue; }
+  const W = 600, H = 420, P = 110;
+  const c = document.createElement('canvas'); c.width = W; c.height = H + P;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#1b2436'; ctx.fillRect(0, 0, W, H);
+  // 50 m grid
+  const T = drawTrack(ctx, t, W, H, { pad: 16, width: Math.max(3, 14 * Math.min((W - 32) / (t.bounds.maxX - t.bounds.minX), (H - 32) / (t.bounds.maxZ - t.bounds.minZ))) });
+  // piece labels
+  ctx.font = '10px system-ui'; ctx.fillStyle = '#fff';
+  t.pieces.forEach((p, k) => { const i = t.pieceStart[k]; const s = t.samples[i]; if (!s) return; ctx.fillText(String(k), T.x(s.p.x) + 3, T.y(s.p.z) - 3); });
+  // elevation profile
+  const maxS = t.samples[t.samples.length - 1].s;
+  const minY = Math.min(0, t.bounds.minY), maxY = Math.max(t.bounds.maxY, minY + 10);
+  ctx.fillStyle = '#10151f'; ctx.fillRect(0, H, W, P);
+  ctx.strokeStyle = '#335'; ctx.beginPath(); const gy = H + P - 8 - (0 - minY) / (maxY - minY) * (P - 16); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
+  for (const s of t.samples) {
+    const x = 8 + s.s / maxS * (W - 16), y = H + P - 8 - (s.p.y - minY) / (maxY - minY) * (P - 16);
+    ctx.fillStyle = !s.road ? '#f55' : s.kind === 'LOOP' ? '#fd4' : s.boost ? '#3ef' : s.bank ? '#8f8' : '#9ab';
+    ctx.fillRect(x, y, 1.5, 1.5);
+  }
+  const info = document.createElement('div');
+  const cl = t.closure ? ` | closure ${t.closure.dist.toFixed(2)} m ${t.closure.yawDeg.toFixed(1)}°` : '';
+  info.innerHTML = `<b>${def.name}</b> (${def.id}) ${def.theme} ${def.laps ? def.laps + ' laps' : 'sprint'} | ${(t.length/1000).toFixed(2)} km | y ${t.bounds.minY.toFixed(0)}..${t.bounds.maxY.toFixed(0)} | ${Math.round(t.bounds.maxX-t.bounds.minX)}x${Math.round(t.bounds.maxZ-t.bounds.minZ)} m${cl}`;
+  div.append(c, info); document.getElementById('g').append(div);
+}
+window.done = true;
+</script></body></html>

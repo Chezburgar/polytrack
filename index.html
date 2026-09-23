@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0d1321">
+<meta name="description" content="PolyTrack - a low-poly multiplayer racing game with 20 tracks and a full garage.">
+<title>PolyTrack</title>
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="src/ui/styles.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/three.module.js",
+    "three/addons/": "./vendor/three/addons/"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="ui"></div>
+<div id="boot">
+  <div class="boot-logo">POLY<span>TRACK</span></div>
+  <div class="boot-bar"><i></i></div>
+  <div class="boot-msg">Loading</div>
+</div>
+<noscript><p class="noscript">PolyTrack needs JavaScript and WebGL.</p></noscript>
+<script src="vendor/peerjs.min.js" defer></script>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
