@@ -117,6 +117,8 @@ export class App {
         this.startRace({ def: getTrackDef(this.params.get('track') || TRACKS[0].id), mode: this.params.get('mode') || 'timetrial', bots: +(this.params.get('bots') || 0) });
       } else if (dev === 'garage') {
         this.ui.show('garage');
+      } else if (this.params.get('room')) {
+        this.toMenu('online'); // invite link: straight to the join screen
       } else {
         this.toMenu();
       }
