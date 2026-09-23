@@ -64,7 +64,8 @@ two `S ?` straights. The grammar is documented at the top of `src/track/builder.
 - `node tools/medals.mjs` - regenerates medal times from AI runs.
 - `node tools/physics-test.mjs` - acceleration, braking, cornering and drift checks.
 - `node tools/browse.mjs <script>` - drives the game in headless Chrome and saves
-  screenshots to `.shots/` (see `.scratch/` for examples; not committed).
+  screenshots to `.shots/` (see `.scratch/` for examples; not committed). It opens
+  the local server by default; `--url=https://chezburgar.github.io/polytrack/` tests the live site.
 - `dev/preview.html` - top-down map and elevation profile of every track.
 - `npm run vendor` - recopies three.js and PeerJS from `node_modules` into `vendor/`.
 

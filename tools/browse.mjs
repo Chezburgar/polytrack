@@ -1,5 +1,5 @@
 // Drives the game in real Chrome via puppeteer-core for verification.
-// Usage: node tools/browse.mjs <script.mjs> [--headful] [--url=/?dev]
+// Usage: node tools/browse.mjs <script.mjs> [--headful] [--url=/?dev | --url=https://...]
 // The script default-exports async (page, h) => {...}; h.shot(name) saves
 // .shots/<name>.png, h.eval(fn, ...args) runs in the page, h.sleep(ms).
 import puppeteer from 'puppeteer-core';
@@ -42,7 +42,7 @@ const h = {
   browser,
   logs,
   // Git Bash rewrites a leading "/" into its install path; accept either form.
-  url: (u = urlArg) => `http://localhost:${port}/${u.replace(/^[A-Za-z]:\/.*?\/Git\//, '').replace(/^\//, '')}`,
+  url: (u = urlArg) => /^https?:/.test(u) ? u : `http://localhost:${port}/${u.replace(/^[A-Za-z]:\/.*?\/Git\//, '').replace(/^\//, '')}`,
   save: (name, text) => writeFile(join(root, '.shots', name), text),
 };
 try {
