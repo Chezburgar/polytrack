@@ -2,123 +2,123 @@
 // author is just under the best bot lap; gold/silver/bronze are +5% / +17% / +35%.
 export const MEDALS = {
   'green-start': {
-    author: 76100,
-    gold: 81100,
-    silver: 90400,
-    bronze: 104300
+    author: 75610,
+    gold: 80600,
+    silver: 89800,
+    bronze: 103600
   },
   'rolling-hills': {
-    author: 30740,
-    gold: 32800,
-    silver: 36500,
-    bronze: 42100
+    author: 31220,
+    gold: 33300,
+    silver: 37100,
+    bronze: 42800
   },
   'meadow-loop': {
-    author: 76270,
-    gold: 81300,
-    silver: 90600,
-    bronze: 104500
+    author: 73250,
+    gold: 78100,
+    silver: 87000,
+    bronze: 100400
   },
   'mesa-run': {
-    author: 38030,
-    gold: 40500,
-    silver: 45200,
-    bronze: 52100
+    author: 37770,
+    gold: 40300,
+    silver: 44900,
+    bronze: 51800
   },
   'canyon-drift': {
-    author: 100850,
+    author: 100880,
     gold: 107500,
     silver: 119800,
-    bronze: 138200
+    bronze: 138300
   },
   'dune-jumper': {
-    author: 39770,
-    gold: 42400,
-    silver: 47200,
-    bronze: 54500
+    author: 36090,
+    gold: 38500,
+    silver: 42900,
+    bronze: 49500
   },
   'glacier-pass': {
-    author: 41820,
-    gold: 44600,
-    silver: 49700,
-    bronze: 57300
+    author: 42490,
+    gold: 45300,
+    silver: 50500,
+    bronze: 58200
   },
   summit: {
-    author: 65610,
+    author: 65570,
     gold: 69900,
     silver: 77900,
     bronze: 89900
   },
   'palm-beach': {
-    author: 79480,
+    author: 79430,
     gold: 84700,
-    silver: 94400,
+    silver: 94300,
     bronze: 108900
   },
   'island-hopper': {
-    author: 40440,
-    gold: 43100,
-    silver: 48000,
-    bronze: 55400
+    author: 36400,
+    gold: 38800,
+    silver: 43200,
+    bronze: 49900
   },
   'maple-mile': {
-    author: 71220,
-    gold: 75900,
-    silver: 84600,
-    bronze: 97600
+    author: 71310,
+    gold: 76000,
+    silver: 84700,
+    bronze: 97700
   },
   'leaf-storm': {
-    author: 38040,
-    gold: 40600,
-    silver: 45200,
-    bronze: 52100
+    author: 37910,
+    gold: 40400,
+    silver: 45000,
+    bronze: 52000
   },
   'neon-boulevard': {
-    author: 97640,
-    gold: 104100,
-    silver: 116000,
-    bronze: 133800
+    author: 96990,
+    gold: 103400,
+    silver: 115200,
+    bronze: 132900
   },
   overdrive: {
-    author: 40040,
-    gold: 42700,
-    silver: 47600,
-    bronze: 54900
+    author: 36860,
+    gold: 39300,
+    silver: 43800,
+    bronze: 50500
   },
   'midnight-spiral': {
-    author: 65420,
-    gold: 69700,
-    silver: 77700,
-    bronze: 89700
+    author: 64630,
+    gold: 68900,
+    silver: 76800,
+    bronze: 88600
   },
   'magma-rush': {
-    author: 36680,
-    gold: 39100,
-    silver: 43600,
-    bronze: 50300
+    author: 36900,
+    gold: 39300,
+    silver: 43800,
+    bronze: 50600
   },
   caldera: {
-    author: 83460,
-    gold: 89000,
-    silver: 99100,
-    bronze: 114400
+    author: 84070,
+    gold: 89600,
+    silver: 99900,
+    bronze: 115200
   },
   stardust: {
-    author: 44050,
-    gold: 47000,
-    silver: 52300,
-    bronze: 60400
+    author: 39030,
+    gold: 41600,
+    silver: 46400,
+    bronze: 53500
   },
   'orbit-ring': {
-    author: 71030,
-    gold: 75700,
-    silver: 84400,
-    bronze: 97300
+    author: 70320,
+    gold: 75000,
+    silver: 83500,
+    bronze: 96400
   },
   'grand-finale': {
-    author: 70390,
-    gold: 75000,
-    silver: 83600,
-    bronze: 96500
+    author: 67780,
+    gold: 72300,
+    silver: 80500,
+    bronze: 92900
   }
 };

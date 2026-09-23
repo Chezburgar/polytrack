@@ -7,7 +7,7 @@ export const DEFAULT_KEYS = {
   left: ['KeyA', 'ArrowLeft'],
   right: ['KeyD', 'ArrowRight'],
   handbrake: ['Space', 'ShiftLeft', 'ShiftRight'],
-  respawn: ['Enter', 'KeyR'],
+  chat: ['Enter', 'KeyT'],
   restart: ['Backspace', 'Delete'],
   camera: ['KeyC'],
   pause: ['Escape', 'KeyP'],
@@ -74,7 +74,6 @@ export class Input {
     const b = (i) => (pad.buttons[i] ? pad.buttons[i].value : 0);
     const pressed = pad.buttons.map((x) => x.pressed);
     const edge = (i) => pressed[i] && !this.prevPadButtons[i];
-    if (edge(1) || edge(3)) this.emit('respawn');
     if (edge(2)) this.emit('camera');
     if (edge(9)) this.emit('pause');
     if (edge(8)) this.emit('restart');

@@ -53,6 +53,16 @@ export const ICONS = {
   link: '<svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1 1.4 1.4 1-1a2 2 0 012.9 2.9l-3 3a2 2 0 01-2.9 0zm4-4a4 4 0 00-5.7 0l-3 3A4 4 0 0011 18.7l1-1-1.4-1.4-1 1a2 2 0 01-2.9-2.9l3-3a2 2 0 012.9 0z"/></svg>',
   robot: '<svg viewBox="0 0 24 24"><path d="M11 2h2v3h5a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V7a2 2 0 012-2h5zM8.5 9a1.5 1.5 0 100 3 1.5 1.5 0 000-3zm7 0a1.5 1.5 0 100 3 1.5 1.5 0 000-3zM8 14v2h8v-2z"/></svg>',
   send: '<svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>',
+  edit: '<svg viewBox="0 0 24 24"><path d="M3 17.2V21h3.8L17.9 9.9l-3.8-3.8zM20.7 7a1 1 0 000-1.4l-2.3-2.3a1 1 0 00-1.4 0l-1.8 1.8 3.8 3.8z"/></svg>',
+  folder: '<svg viewBox="0 0 24 24"><path d="M2 5h8l2 2h10v13H2z"/></svg>',
+  plus: '<svg viewBox="0 0 24 24"><path d="M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7z"/></svg>',
+  upload: '<svg viewBox="0 0 24 24"><path d="M11 16V7.8l-3.3 3.3-1.4-1.4L12 4l5.7 5.7-1.4 1.4L13 7.8V16zM4 18h16v2H4z"/></svg>',
+  download: '<svg viewBox="0 0 24 24"><path d="M11 4h2v8.2l3.3-3.3 1.4 1.4L12 16l-5.7-5.7 1.4-1.4 3.3 3.3zM4 18h16v2H4z"/></svg>',
+  share: '<svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" stroke="currentColor" stroke-width="2" fill="none"/></svg>',
+  undo: '<svg viewBox="0 0 24 24"><path d="M7.5 8H15a6 6 0 010 12H8v-2h7a4 4 0 000-8H7.5l3.2 3.2-1.4 1.4L3.7 9l5.6-5.6 1.4 1.4z"/></svg>',
+  redo: '<svg viewBox="0 0 24 24"><path d="M16.5 8H9a6 6 0 000 12h7v-2H9a4 4 0 010-8h7.5l-3.2 3.2 1.4 1.4L20.3 9l-5.6-5.6-1.4 1.4z"/></svg>',
+  trash: '<svg viewBox="0 0 24 24"><path d="M9 3h6l1 2h4v2H4V5h4zM6 9h12l-1 12H7z"/></svg>',
+  sound: '<svg viewBox="0 0 24 24"><path d="M3 9h4l5-4v14l-5-4H3z"/><path d="M15.5 8.5a5 5 0 010 7M18 6a8.5 8.5 0 010 12" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
 };
 
 export function icon(name) {

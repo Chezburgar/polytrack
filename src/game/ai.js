@@ -148,6 +148,58 @@ export class AIDriver {
     this.wantRespawn = false;
     this.reverseTime = 0;
     this.S = track.samples;
+    this.traffic = null; // [{ s, lat, v }] of the other cars, set by the session
+    this.dodge = 0; // lateral shift off the racing line to get round someone
+    this.capSpeed = Infinity;
+    this.noPass = noPassZones(track);
+    this.lane = 0; // grid lane held for the first seconds, then merged away
+    this.laneT = 0;
+  }
+
+  // start in the lane of your grid slot instead of everyone diving for the line
+  startLane(lat, prog) {
+    const i = prog.index;
+    this.lane = lat - (this.line[i] + this.jitter * Math.min(1.2, this.S[i].hw * 0.12));
+    this.dodge = this.lane;
+    this.laneT = 5;
+  }
+
+  // Cars ahead in our lane that we're catching: move over to the side with
+  // room, or ease off and queue if there isn't any. Alongside: keep our side.
+  // Never near a kicker, jump or loop - there you hold the centre line.
+  _avoid(prog, v, dt) {
+    const S = this.S, i = prog.index, T = this.traffic;
+    const closed = this.track.closed, L = this.track.length;
+    const base = this.line[i] + this.jitter * Math.min(1.2, S[i].hw * 0.12);
+    const lim = Math.max(0, S[i].hw - 1.6);
+    let want = 0, cap = Infinity;
+    if (this.laneT > 0) { this.laneT -= dt; want = this.lane * Math.min(1, this.laneT / 3); }
+    if (T && T.length) {
+      for (const o of T) {
+        let ds = o.s - prog.s;
+        if (closed) { ds = ((ds % L) + L) % L; if (ds > L / 2) ds -= L; }
+        if (ds < -7 || ds > 35) continue;
+        const dl = o.lat - prog.lat;
+        if (Math.abs(dl) > 3.4) continue;
+        if (ds > 2.5) {
+          const closing = v - o.v;
+          if (ds > 12 && (closing <= 0 || (ds - 6) / closing > 2)) continue;
+          const roomL = lim - o.lat, roomR = o.lat + lim;
+          const side = roomL >= roomR ? 1 : -1;
+          if (!this.noPass[i] && (side > 0 ? roomL : roomR) > 2.6) want = o.lat + side * 3.1 - base;
+          else cap = Math.min(cap, Math.max(4, o.v - 1 + (ds - 7) * 0.5));
+        } else if (!this.noPass[i]) {
+          want += (dl > 0 ? -1 : 1) * (3.4 - Math.abs(dl)) * 0.7;
+        }
+      }
+    }
+    // on a stunt's run-up nobody slows for traffic: arriving slow is what
+    // drops you in the gap or off the top of the loop
+    if (this.noPass[i]) { want = 0; cap = Infinity; }
+    want = clamp(want, -lim - base, lim - base);
+    const rate = 2.5 * dt;
+    this.dodge += clamp(want - this.dodge, -rate, rate);
+    this.capSpeed = cap;
   }
 
   // step the ballistic arc until it meets the road surface; returns a sample index
@@ -175,7 +227,8 @@ export class AIDriver {
   linePoint(i, out) {
     const S = this.track.samples;
     const s = S[i];
-    const o = this.line[i] + this.jitter * Math.min(1.2, s.hw * 0.12);
+    const lim = Math.max(0, s.hw - 1.4);
+    const o = clamp(this.line[i] + this.jitter * Math.min(1.2, s.hw * 0.12) + this.dodge, -lim, lim);
     return out.set(s.p.x + s.l.x * o, s.p.y + s.l.y * o, s.p.z + s.l.z * o);
   }
 
@@ -193,18 +246,17 @@ export class AIDriver {
     const v = car.forwardSpeed;
     const i = progress.index;
 
-    // airborne: predict where we come down, then match that road's slope and
-    // heading so we land flat and pointing the right way
+    // airborne: the car's air assist levels it for the landing; steer the nose
+    // round to the road we'll come down on, in case it curves away
     if (!car.grounded && car.airTime > 0.05) {
       const land = this.S[this.predictLanding(car, i)];
-      const pitchErr = car.fwd.dot(land.n); // + = nose above the landing surface's plane
       _c.crossVectors(car.fwd, land.t);
-      const yawErr = _c.dot(car.up);
-      inp.steer = clamp(yawErr * 3, -1, 1);
-      inp.throttle = clamp(pitchErr * 5, 0, 1);
-      inp.brake = clamp(-pitchErr * 5, 0, 1);
+      inp.steer = clamp(_c.dot(car.up) * 3, -1, 1);
+      inp.throttle = 0; inp.brake = 0;
       return;
     }
+
+    this._avoid(progress, v, dt);
 
     // stuck or facing the wrong way -> reverse out, then give up and respawn
     if (Math.abs(v) < 1.5) this.stuck += dt; else this.stuck = Math.max(0, this.stuck - dt * 2);
@@ -252,7 +304,7 @@ export class AIDriver {
 
     // speed
     const si = this.aheadIndex(i, Math.max(3, Math.abs(v) * 0.3));
-    const vT = this.speeds[si] * this.skill;
+    const vT = Math.min(this.speeds[si] * this.skill, this.capSpeed);
     if (v < vT - 0.8) { inp.throttle = 1; inp.brake = 0; }
     else if (v > vT + 1.2) { inp.throttle = 0; inp.brake = clamp((v - vT) / 5, 0.25, 1); }
     else { inp.throttle = 0.45; inp.brake = 0; }
@@ -261,3 +313,19 @@ export class AIDriver {
   }
 }
 const _t = new Vector3(), _d = new Vector3(), _a = new Vector3(), _b = new Vector3(), _p = new Vector3(), _c = new Vector3(), _f = new Vector3();
+
+// Where overtaking is off: kickers, gaps and loops, the 80 m run-up to a
+// kicker or loop, and 40 m past a landing or a loop exit.
+function noPassZones(track) {
+  if (track._noPass) return track._noPass;
+  const S = track.samples, n = S.length;
+  const out = new Uint8Array(n);
+  const at = (j) => (track.closed ? ((j % n) + n) % n : j);
+  for (let i = 0; i < n; i++) {
+    const k = S[i].kind;
+    if (k !== 'K' && k !== 'J' && k !== 'LOOP' && S[i].road) continue;
+    const before = k === 'K' || k === 'LOOP' ? 80 : 0, after = k === 'J' || k === 'LOOP' || !S[i].road ? 40 : 0;
+    for (let d = -before; d <= after; d++) { const j = at(i + d); if (j >= 0 && j < n) out[j] = 1; }
+  }
+  return (track._noPass = out);
+}

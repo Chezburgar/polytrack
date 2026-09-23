@@ -5,6 +5,8 @@ import { NetSession, MAX_PLAYERS } from '../../net/net.js';
 import { TRACKS } from '../../track/tracks.js';
 import { getTheme } from '../../track/themes.js';
 import { trackThumb, trackInfo } from './play.js';
+import { QUICK_CHAT } from '../chat.js';
+import { library, saveToLibrary } from '../../track/custom.js';
 
 export class OnlineScreen {
   constructor(ui, data = {}) {
@@ -108,7 +110,9 @@ export class LobbyScreen {
       h('div.lobby-body',
         h('div.lobby-main',
           h('div.panel', h('h3', 'Drivers ', h('small', `(max ${MAX_PLAYERS})`)), this.roster),
-          h('div.panel.chat', h('h3', 'Chat'), this.chatLog, h('div.chat-row', this.chatInput, button([icon('send')], () => { net.chat(this.chatInput.value); this.chatInput.value = ''; }, 'icon-btn small')))),
+          h('div.panel.chat', h('h3', 'Chat'), this.chatLog,
+            h('div.chat-row', this.chatInput, button([icon('send')], () => { net.chat(this.chatInput.value); this.chatInput.value = ''; this.chatInput.focus(); }, 'icon-btn small', { title: 'Send' })),
+            h('div.quick-chat', ...QUICK_CHAT.map((q) => h('button', { type: 'button', onclick: () => net.chat(q) }, q))))),
         h('div.lobby-right', this.side, this.action)),
     );
     this.off = net.on((kind) => { if (kind === 'chat') this.renderChat(); else this.render(); });
@@ -149,14 +153,21 @@ export class LobbyScreen {
     }
     // side: track + settings
     const s = net.settings;
-    const def = TRACKS.find((t) => t.id === s.trackId) || TRACKS[0];
+    const def = net.trackDef() || TRACKS[0];
     clear(this.side);
     const thumb = trackThumb(def, 320, 180);
-    const trackRow = h('div.lobby-track', thumb, h('div', h('b', def.name), h('span', `${getTheme(def.theme).name} · ${def.laps ? (s.laps || def.laps) + ' laps' : 'Sprint'} · ${(trackInfo(def).track.length / 1000).toFixed(1)} km`)));
+    const trackRow = h('div.lobby-track', thumb, h('div', h('b', def.name), h('span', `${getTheme(def.theme).name} · ${def.laps ? (s.laps || def.laps) + ' laps' : 'Sprint'} · ${(trackInfo(def).track.length / 1000).toFixed(1)} km${def.custom ? ` · custom${def.author ? ' by ' + def.author : ''}` : ''}`)));
     this.side.append(h('div.panel', h('h3', 'Track'), trackRow));
+    if (def.custom && !net.isHost) {
+      const have = library().some((d) => d.id === def.id);
+      trackRow.append(button(have ? 'In your tracks' : 'Save to my tracks', (e) => { saveToLibrary({ ...def, slot: undefined }); e.currentTarget.textContent = 'Saved'; e.currentTarget.disabled = true; this.ui.toast(`Saved "${def.name}" to your tracks`); }, 'small', { disabled: have }));
+    }
     if (net.isHost) {
-      const sel = h('select.track-select', ...TRACKS.map((t, i) => h('option', { value: t.id, selected: t.id === s.trackId }, `${String(i + 1).padStart(2, '0')}  ${t.name}`)));
-      sel.addEventListener('change', () => net.setSetting('trackId', sel.value));
+      const mine = library();
+      const sel = h('select.track-select',
+        h('optgroup', { label: 'PolyTrack tracks' }, ...TRACKS.map((t, i) => h('option', { value: t.id, selected: t.id === s.trackId }, `${String(i + 1).padStart(2, '0')}  ${t.name}`))),
+        mine.length ? h('optgroup', { label: 'My tracks' }, ...mine.map((t) => h('option', { value: 'lib:' + t.slot, selected: t.id === s.trackId }, t.name))) : null);
+      sel.addEventListener('change', () => net.setSetting('trackId', sel.value.startsWith('lib:') ? mine.find((t) => 'lib:' + t.slot === sel.value) : sel.value));
       const opts = h('div.opts',
         h('div.opt', h('span', 'Track'), sel),
         def.laps ? this.stepper('Laps', s.laps || def.laps, 1, 9, (v) => net.setSetting('laps', v)) : null,

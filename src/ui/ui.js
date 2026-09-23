@@ -10,10 +10,12 @@ import { SettingsScreen } from './screens/settings.js';
 import { ResultsScreen } from './screens/results.js';
 import { PauseOverlay } from './screens/pause.js';
 import { TouchControls } from './touch.js';
+import { ChatOverlay } from './chat.js';
+import { EditorScreen, editorDrop } from './screens/editor.js';
 
 const SCREENS = {
   title: TitleScreen, play: PlayScreen, garage: GarageScreen, online: OnlineScreen, lobby: LobbyScreen,
-  settings: SettingsScreen, results: ResultsScreen,
+  settings: SettingsScreen, results: ResultsScreen, editor: EditorScreen,
 };
 
 export class UI {
@@ -27,6 +29,9 @@ export class UI {
     this.root.append(this.hudLayer, this.layer, this.overlayLayer, this.toasts);
     this.hud = new HUD(app);
     this.touch = new TouchControls(app);
+    this.chat = new ChatOverlay(app);
+    this.editor = null;
+    editorDrop(app);
     this.root.append(this.touch.el);
     this.current = null;
     this.screen = null;
@@ -69,9 +74,11 @@ export class UI {
       clear(this.hudLayer);
       this.hudLayer.append(this.hud.el);
       this.hud.attach(this.app.session);
-      if (this.app.session?.mode === 'online') this.app.net?.attachChat?.(this.hudLayer);
+      if (this.app.session?.mode === 'online' && this.app.net) { this.hudLayer.append(this.chat.el); this.chat.attach(this.app.net); }
+      else this.chat.detach();
       return;
     }
+    if (name !== 'results') this.chat.detach();
     const S = SCREENS[name];
     if (!S) return;
     this.screen = new S(this, data);
@@ -127,6 +134,7 @@ export class UI {
     this.screen?.update?.(dt);
     this.overlayScreen?.update?.(dt);
     this.touch.update();
+    this.chat.update(dt);
   }
 
   _focusables() {
@@ -146,6 +154,7 @@ export class UI {
 
   _nav(e) {
     if (this.app.mode === 'race' && !this.overlayScreen && this.current !== 'results') return;
+    if (this.current === 'editor') return; // the editor has its own keys
     const tag = document.activeElement?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
     if (e.code === 'ArrowDown') { e.preventDefault(); this._move(1); }

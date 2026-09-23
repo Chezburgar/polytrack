@@ -4,6 +4,7 @@
 // time, so remote cars are interpolated on the shared race clock.
 import { PeerTransport, LocalTransport } from './transport.js';
 import { TRACKS } from '../track/tracks.js';
+import { sanitize, shareable } from '../track/custom.js';
 import { BOT_NAMES, randomBotCar } from '../car/presets.js';
 import { mulberry32 } from '../util/math.js';
 
@@ -30,6 +31,7 @@ export class NetSession {
     this.rttSamples = [];
     this.finishes = new Map();
     this.sendAcc = 0;
+    this.chatTimes = new Map(); // host: recent message times per player (spam limit)
   }
 
   // ---- lifecycle ------------------------------------------------------------------
@@ -167,12 +169,35 @@ export class NetSession {
     if (this.state === 'racing' && this._allFinished()) this.endRace();
   }
 
+  // trackId takes a built-in id or a custom track definition (from the host's
+  // library); a custom track's pieces travel with the settings
   setSetting(k, v) {
     if (!this.isHost) return;
-    this.settings[k] = v;
-    if (k === 'trackId') { const d = TRACKS.find((t) => t.id === v); this.settings.laps = d?.laps || 0; }
+    if (k === 'trackId') {
+      const def = typeof v === 'object' && v ? v : TRACKS.find((t) => t.id === v);
+      if (!def) return;
+      this.settings.trackId = def.id;
+      this.settings.custom = def.custom ? shareable(def) : null;
+      this.settings.laps = def.laps || 0;
+    } else this.settings[k] = v;
     this.t.broadcast({ t: 'settings', settings: this.settings });
     this._changed();
+    if (k === 'trackId') { const d = this.trackDef(); if (d) this._sysChat(`Track: ${d.name}${d.custom ? ' (custom)' : ''}`); }
+  }
+
+  // the chosen track's definition; custom ones are checked before use (a guest
+  // never trusts what arrives over the wire)
+  trackDef() {
+    const s = this.settings;
+    if (s.custom) {
+      if (this._cdef?.src !== s.custom) {
+        let def = null;
+        try { def = sanitize(s.custom); } catch (e) { console.warn('bad custom track', e); }
+        this._cdef = { src: s.custom, def };
+      }
+      return this._cdef.def;
+    }
+    return TRACKS.find((t) => t.id === s.trackId) || null;
   }
 
   kick(id) {
@@ -183,7 +208,7 @@ export class NetSession {
 
   startRace() {
     if (!this.isHost || this.state === 'racing') return;
-    const def = TRACKS.find((t) => t.id === this.settings.trackId) || TRACKS[0];
+    const def = this.trackDef() || TRACKS[0];
     const grid = this.list().map((p) => ({ id: p.id, name: p.name, car: p.car, kind: 'player', slot: p.slot }));
     const rnd = mulberry32(Date.now() & 0xffff);
     const skill = { easy: 0.8, medium: 0.9, hard: 0.96, pro: 1 }[this.settings.difficulty] || 0.9;
@@ -191,7 +216,7 @@ export class NetSession {
     for (let i = 0; i < Math.min(this.settings.bots, MAX_PLAYERS - grid.length); i++) {
       grid.push({ id: 'bot' + i, name: BOT_NAMES[(i * 3 + 5) % BOT_NAMES.length] + ' (AI)', car: randomBotCar(rnd), kind: 'bot', slot: slot++, skill: skill - rnd() * 0.04 });
     }
-    const msg = { t: 'start', trackId: def.id, laps: def.laps ? this.settings.laps || def.laps : 0, grid, startAt: this.now() + 5200 };
+    const msg = { t: 'start', trackId: def.id, def: def.custom ? shareable(def) : null, laps: def.laps ? this.settings.laps || def.laps : 0, grid, startAt: this.now() + 5200 };
     this.t.broadcast(msg);
     this._begin(msg);
   }
@@ -201,6 +226,10 @@ export class NetSession {
     this.state = 'results';
     const msg = { t: 'end', finishes: [...this.finishes.entries()] };
     this.t.broadcast(msg);
+    // the result goes in the chat too
+    const best = [...this.finishes.entries()].sort((a, b) => a[1] - b[1])[0];
+    const who = best && (this.race?.grid || []).find((g) => g.id === best[0]);
+    if (who) this._sysChat(`${who.name} won in ${fmt(best[1])}`);
     this._changed('end');
     this._broadcastRoster();
   }
@@ -287,6 +316,16 @@ export class NetSession {
   }
 
   _relayChat(id, text) {
+    // at most 5 messages in 5 seconds each
+    const now = performance.now();
+    const times = (this.chatTimes.get(id) || []).filter((x) => now - x < 5000);
+    if (times.length >= 5) {
+      const warn = { t: 'chat', sys: true, text: 'Slow down - too many messages.' };
+      if (id === this.selfId) this._pushChat(warn); else this.t.send(id, warn);
+      return;
+    }
+    times.push(now);
+    this.chatTimes.set(id, times);
     const p = this.players.get(id);
     const m = { t: 'chat', from: id, name: p?.name || '?', text: clean(text, 140), color: p?.car?.paint };
     this.t.broadcast(m);
@@ -304,7 +343,6 @@ export class NetSession {
     if (this.chatLog.length > 60) this.chatLog.shift();
     if (!m.sys && m.from !== this.selfId) this.app.audio.play('chat');
     this._changed('chat', m);
-    if (this.app.mode === 'race' && !m.sys) this.app.ui.toast(`${m.name}: ${m.text}`, 'chat');
   }
 
   _begin(m) {
@@ -352,6 +390,7 @@ export class NetSession {
         q: [r4(c.quat.x), r4(c.quat.y), r4(c.quat.z), r4(c.quat.w)],
         v: [r2(c.vel.x), r2(c.vel.y), r2(c.vel.z)],
         st: r2(c.steer), b: c.boost > 0 ? 1 : 0, c: +(e.completion || 0).toFixed(5), l: e.race.lap,
+        g: e.ghostUntil > s.clock ? 1 : 0,
       };
       if (this.isHost) this.t.broadcast(msg); else this.t.toHost(msg);
     };
@@ -370,6 +409,7 @@ export class NetSession {
 }
 
 const r2 = (v) => Math.round(v * 100) / 100;
+const fmt = (s) => `${Math.floor(s / 60)}:${(s % 60).toFixed(3).padStart(6, '0')}`;
 const r3 = (v) => Math.round(v * 1000) / 1000;
 const r4 = (v) => Math.round(v * 10000) / 10000;
 

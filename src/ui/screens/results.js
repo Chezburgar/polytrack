@@ -15,7 +15,7 @@ export class ResultsScreen {
     const def = s?.opts.def;
     const idx = TRACKS.findIndex((t) => t.id === def?.id);
     const next = TRACKS[(idx + 1) % TRACKS.length];
-    const md = MEDALS[def?.id];
+    const md = def?.custom ? def.medals : MEDALS[def?.id];
     const online = s?.mode === 'online';
     this.table = h('div.standings');
     this.actions = h('div.res-actions');
@@ -67,6 +67,13 @@ export class ResultsScreen {
         this.actions.append(h('div.wait-note', net.state === 'results' ? 'Race over - the host will take everyone back to the lobby.' : 'Waiting for the others to finish…'));
       }
       this.actions.append(button('Leave room', () => app.quitRace(), 'wide ghost'));
+      return;
+    }
+    if (app.lastRace?.editor) {
+      this.actions.append(
+        button([icon('flag'), h('span', 'Retry')], () => { app.audio.play('select'); app.restartRace(); }, 'primary big'),
+        button([icon('edit'), h('span', 'Edit track')], () => { app.audio.play('back'); app.openEditor(); }, 'big'),
+        button('Menu', () => { app.audio.play('back'); app.toMenu('title'); }, ''));
       return;
     }
     this.actions.append(

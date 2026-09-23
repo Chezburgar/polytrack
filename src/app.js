@@ -13,6 +13,7 @@ import { UI } from './ui/ui.js';
 import { load, save } from './util/storage.js';
 import { mulberry32 } from './util/math.js';
 import { randomBotCar, BOT_NAMES } from './car/presets.js';
+import { sanitize, buildDef } from './track/custom.js';
 
 export const VERSION = '1.0.0';
 
@@ -58,7 +59,8 @@ export class App {
     this.net = null;
     window.addEventListener('resize', () => this.renderer.resize());
     this.input.on('pause', () => this.onPause());
-    this.input.on('respawn', () => { if (this.mode === 'race' && this.session?.player && !this.session.paused) this.session.respawn(this.session.player); });
+    // online: Enter / T opens the chat line (after this key event, so the T isn't typed)
+    this.input.on('chat', () => { if (this.mode === 'race' && this.session?.mode === 'online' && this.net) setTimeout(() => this.ui.chat.open(), 0); });
     this.input.on('restart', () => { if (this.mode === 'race' && this.session?.mode === 'timetrial' && !this.session.paused) this.restartRace(); });
     this.input.on('camera', () => {
       if (this.mode !== 'race' || !this.session) return;
@@ -169,8 +171,9 @@ export class App {
     if (mode === 'race') {
       const rnd = mulberry32(Date.now() & 0xffff);
       const n = opts.bots ?? 5;
+      const first = Math.floor(rnd() * BOT_NAMES.length); // consecutive names: never two the same
       const skillBase = { easy: 0.72, medium: 0.83, hard: 0.92, pro: 1.0 }[opts.difficulty || 'medium'];
-      for (let i = 0; i < n; i++) bots.push({ name: BOT_NAMES[(i + Math.floor(rnd() * 8)) % BOT_NAMES.length], custom: randomBotCar(rnd), skill: skillBase - rnd() * 0.05 + (i === 0 ? 0.03 : 0) });
+      for (let i = 0; i < n; i++) bots.push({ name: BOT_NAMES[(first + i) % BOT_NAMES.length], custom: randomBotCar(rnd), skill: skillBase - rnd() * 0.05 + (i === 0 ? 0.03 : 0) });
     }
     this.lastRace = { ...opts, def, mode };
     this.session = new Session(this, {
@@ -199,7 +202,16 @@ export class App {
         this.net = null;
       }
     }
+    if (this.lastRace?.editor && this.session?.mode !== 'online') { this.openEditor(); return; }
     this.toMenu(this.lastRace && this.session?.mode !== 'online' ? 'play' : 'title');
+  }
+
+  // Track Builder (renders its own preview scene, like the garage)
+  openEditor(data) {
+    this.endSession();
+    this.mode = 'editor';
+    this.ui.show('editor', data);
+    this.audio.setMusic('menu');
   }
 
   openGarage(fromLobby = false) {
@@ -221,7 +233,9 @@ export class App {
   async startOnlineRace(m) {
     const net = this.net;
     if (!net) return;
-    const def = getTrackDef(m.trackId);
+    let def = null;
+    if (m.def) { try { def = buildDef(sanitize(m.def)); } catch (e) { this.ui.toast('The host\'s custom track could not be loaded: ' + e.message, 'err'); return; } }
+    else def = getTrackDef(m.trackId);
     if (!def) return;
     const me = m.grid.find((g) => g.id === net.selfId);
     if (!me) { this.ui.toast('Race started without you - you will join the next one.'); return; }
@@ -316,7 +330,7 @@ export class App {
       this.saveRecords();
     }
     s.autopilot = true;
-    const medal = s.mode === 'online' ? null : medalFor(def.id, ms);
+    const medal = s.mode === 'online' ? null : medalFor(def, ms);
     this.lastResult = { time: ms, pb, medal, trackId: def.id, mode: s.mode, delta: ev.delta };
     setTimeout(() => { if (this.session === s) this.showResults(); }, s.mode === 'timetrial' ? 1800 : 2600);
   }
@@ -342,6 +356,8 @@ export class App {
     const inp = this.input.state();
     if (this.mode === 'garage' && this.ui.garage) {
       this.ui.garage.update(dt);
+    } else if (this.mode === 'editor' && this.ui.editor) {
+      this.ui.editor.update(dt);
     } else if (!this.session) {
       this.renderer.renderer.setClearColor(0x0b101b, 1);
       this.renderer.renderer.clear();
@@ -399,8 +415,9 @@ export class App {
   }
 }
 
-export function medalFor(trackId, ms) {
-  const m = MEDALS[trackId];
+// trackId, or a track definition (custom tracks carry their own AI-set medals)
+export function medalFor(track, ms) {
+  const m = typeof track === 'object' ? (track.custom ? track.medals : MEDALS[track.id]) : MEDALS[track];
   if (!m) return null;
   if (ms <= m.author) return 'author';
   if (ms <= m.gold) return 'gold';

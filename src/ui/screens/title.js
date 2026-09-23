@@ -25,6 +25,7 @@ export class TitleScreen {
         h('div.menu-stack',
           button([icon('play'), h('span', 'Play')], go('play'), 'primary big', { autofocus: true }),
           button([icon('users'), h('span', 'Multiplayer')], go('online'), 'big'),
+          button([icon('edit'), h('span', 'Track Builder')], () => { app.audio.play('select'); app.openEditor(); }, 'big'),
           button([icon('car'), h('span', 'Garage')], () => { app.audio.play('select'); app.openGarage(); }, 'big'),
           button([icon('gear'), h('span', 'Settings')], go('settings'), 'big'),
         ),
@@ -33,10 +34,15 @@ export class TitleScreen {
           h('div', h('b', `${golds}`), h('span', 'gold medals')),
         ),
       ),
-      h('div.title-foot', h('span', `v${VERSION}`), h('span', 'WASD / Arrows to drive · Space to drift · R to respawn'),
-        h('button.fs-btn', { type: 'button', title: 'Full screen (F11)', onclick: () => toggleFullscreen() }, '⛶ Full screen')),
+      h('div.title-foot', h('span', `v${VERSION}`), h('span', 'WASD / Arrows to drive · Space to drift · C to change camera'),
+        h('div.foot-right',
+          this.sound = h('button.sound-hint', { type: 'button', title: 'Browsers keep sound off until you click or press a key', onclick: () => app.audio.unlock() }, icon('sound'), 'Click for sound'),
+          h('button.fs-btn', { type: 'button', title: 'Full screen (F11)', onclick: () => toggleFullscreen() }, '⛶ Full screen'))),
     );
+    this.app = app;
   }
+
+  update() { this.sound.classList.toggle('gone', this.app.audio.running); }
 }
 
 export function toggleFullscreen() {

@@ -10,11 +10,13 @@ import { drawTrack } from '../trackmap.js';
 import { formatTime } from '../../util/math.js';
 import { medalFor } from '../../app.js';
 import { load, save } from '../../util/storage.js';
+import { library, buildDef } from '../../track/custom.js';
+import { THEMES } from '../../track/themes.js';
 
 const built = new Map();
 export function trackInfo(def) {
   if (!built.has(def.id)) {
-    const t = buildTrack(def);
+    const t = buildTrack(def.custom ? buildDef(def) : def);
     const feats = new Set();
     for (const p of t.pieces) {
       if (p.type === 'LOOP') feats.add('loop');
@@ -60,11 +62,18 @@ export class PlayScreen {
     const app = (this.app = ui.app);
     this.filter = 'all';
     this.prefs = { mode: 'timetrial', bots: 5, difficulty: 'medium', laps: null, ...load('playPrefs', {}) };
-    this.selected = TRACKS.find((t) => t.id === this.prefs.track) || TRACKS[0];
+    this.custom = library();
+    this.selected = TRACKS.find((t) => t.id === this.prefs.track) || this.custom.find((t) => t.id === this.prefs.track) || TRACKS[0];
+    if (this.selected.custom) this.filter = 'custom';
     this.grid = h('div.track-grid');
     this.detail = h('div.track-detail');
-    const tabs = h('div.tabs', ...[['all', 'All'], ['sprint', 'Sprints'], ['circuit', 'Circuits']].map(([k, label]) =>
-      h('button.tab' + (k === 'all' ? '.on' : ''), { type: 'button', onclick: (e) => { this.filter = k; tabs.querySelectorAll('.tab').forEach((t) => t.classList.remove('on')); e.currentTarget.classList.add('on'); this.renderGrid(); } }, label)));
+    const tabs = h('div.tabs', ...[['all', 'All'], ['sprint', 'Sprints'], ['circuit', 'Circuits'], ['custom', `My tracks (${this.custom.length})`]].map(([k, label]) =>
+      h('button.tab' + (k === this.filter ? '.on' : ''), { type: 'button', onclick: (e) => {
+        this.filter = k; tabs.querySelectorAll('.tab').forEach((t) => t.classList.remove('on')); e.currentTarget.classList.add('on');
+        // switching to your tracks shows one of them
+        if (k === 'custom' && !this.selected.custom && this.custom.length) { this.selected = this.custom[0]; this.renderDetail(); }
+        this.renderGrid();
+      } }, label)));
     const medals = TRACKS.map((t) => (app.records[t.id]?.best != null ? medalFor(t.id, app.records[t.id].best) : null));
     const count = (m) => medals.filter((x) => x === m).length;
     this.el = h('div.screen.play-screen',
@@ -84,6 +93,7 @@ export class PlayScreen {
 
   renderGrid() {
     clear(this.grid);
+    if (this.filter === 'custom') { this.renderCustom(); return; }
     TRACKS.forEach((def, i) => {
       if (this.filter === 'sprint' && def.laps) return;
       if (this.filter === 'circuit' && !def.laps) return;
@@ -107,12 +117,34 @@ export class PlayScreen {
     this.grid.querySelector('.sel')?.scrollIntoView({ block: 'nearest' });
   }
 
+  // the player's own tracks, plus a card to make a new one
+  renderCustom() {
+    this.grid.append(h('button.track-card.new-card', { type: 'button', onclick: () => { this.app.audio.play('select'); this.app.openEditor(); } },
+      h('div.tc-thumb.new', icon('plus')), h('div.tc-info', h('div.tc-name', 'Track Builder'), h('div.tc-meta', h('span', 'Build your own - it saves here')))));
+    for (const def of this.custom) {
+      const rec = this.app.records[def.id];
+      const m = rec?.best != null ? medalFor(def, rec.best) : null;
+      const card = h('button.track-card' + (def.id === this.selected.id ? '.sel' : ''), {
+        type: 'button',
+        onclick: () => { this.selected = def; this.app.audio.play('click'); this.renderGrid(); this.renderDetail(); },
+        ondblclick: () => this.start(),
+      },
+      h('div.tc-thumb', trackThumb(def)),
+      h('div.tc-info',
+        h('div.tc-name', def.name),
+        h('div.tc-meta', h('span', THEMES[def.theme]?.name || ''), h('span.tc-type', def.laps ? `${def.laps} laps` : 'Sprint')),
+        h('div.tc-best', medalIcon(m), rec?.best != null ? formatTime(rec.best) : '--:--.---')));
+      this.grid.append(card);
+    }
+    this.grid.querySelector('.sel')?.scrollIntoView({ block: 'nearest' });
+  }
+
   renderDetail() {
     const def = this.selected;
     const info = trackInfo(def);
     const t = info.track;
     const rec = this.app.records[def.id];
-    const md = MEDALS[def.id];
+    const md = def.custom ? def.medals : MEDALS[def.id];
     const p = this.prefs;
     const laps = p.laps ?? def.laps;
     const modeBtn = (k, label, ic) => h('button.seg' + (p.mode === k ? '.on' : ''), { type: 'button', onclick: () => { p.mode = k; this.renderDetail(); } }, icon(ic), label);
@@ -122,9 +154,11 @@ export class PlayScreen {
     const bctx = big.getContext('2d');
     drawTrack(bctx, t, 360, 230, { pad: 18, width: 6 });
     clear(this.detail);
-    this.detail.append(
+    // (h() skips nulls; the native append would print them)
+    this.detail.append(h('div.td-body',
       h('div.td-map', big),
-      h('div.td-title', h('h2', def.name), h('div.td-sub', `${getTheme(def.theme).name} · ${def.laps ? 'Circuit' : 'Sprint'} · ${(t.length / 1000).toFixed(2)} km · ${DIFFICULTY[def.difficulty ?? 0]}`)),
+      h('div.td-title', h('h2', def.name), h('div.td-sub', `${getTheme(def.theme).name} · ${def.laps ? 'Circuit' : 'Sprint'} · ${(t.length / 1000).toFixed(2)} km · ${DIFFICULTY[def.difficulty ?? 0]}${def.custom && def.author ? ` · by ${def.author}` : ''}`)),
+      def.custom ? h('div.row', button([icon('edit'), h('span', 'Edit in Track Builder')], () => { this.app.audio.play('select'); this.app.openEditor({ def, slot: def.slot }); }, 'small'), !md ? h('span.note', 'No medals yet - run the AI test in the builder.') : null) : null,
       h('div.td-feats', ...info.feats.map((f) => h('span.feat', featNames[f]))),
       md ? h('div.td-medals', ...['author', 'gold', 'silver', 'bronze'].map((m) => {
         const got = rec?.best != null && rec.best <= md[m];
@@ -137,7 +171,7 @@ export class PlayScreen {
         this.choice('Difficulty', ['easy', 'medium', 'hard', 'pro'], p.difficulty, (v) => { p.difficulty = v; }),
         def.laps ? this.stepper('Laps', laps, 1, 9, (v) => { p.laps = v; }) : null) : h('div.opts.hint', 'Race the clock. Your best run is saved as a ghost to chase.'),
       button([icon('flag'), h('span', 'Start')], () => this.start(), 'primary big wide'),
-    );
+    ));
   }
 
   stepper(label, value, min, max, set) {
@@ -161,6 +195,7 @@ export class PlayScreen {
     p.track = this.selected.id;
     save('playPrefs', p);
     this.app.audio.play('select');
-    this.app.startRace({ def: this.selected, mode: p.mode, bots: p.bots, difficulty: p.difficulty, laps: this.selected.laps ? p.laps ?? this.selected.laps : 0 });
+    const def = this.selected.custom ? buildDef(this.selected) : this.selected;
+    this.app.startRace({ def, mode: p.mode, bots: p.bots, difficulty: p.difficulty, laps: def.laps ? p.laps ?? def.laps : 0 });
   }
 }

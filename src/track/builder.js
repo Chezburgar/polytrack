@@ -115,12 +115,18 @@ export function buildTrack(def) {
     G[k] = ma * mb <= 0 ? 0 : (2 * ma * mb) / (ma + mb);
   }
   // Jump gaps: take-off keeps the lip's grade, landing mirrors the parabola the
-  // car flies when it clears the gap exactly at its design speed.
+  // car flies when it clears the gap exactly at its design speed - but only as
+  // steep as the landing piece can ease out of without climbing back up. (A
+  // steep landing on a level straight dipped into a valley and rose to a crest
+  // that threw cars into the air again.) Give the landing piece a drop, e.g.
+  // "S 60 d6", for a sloped landing.
   for (let k = 0; k < N; k++) {
     if (pieces[k].type !== 'J') continue;
     const gIn = k > 0 && pieces[k - 1].type === 'K' ? Math.tan(pieces[k - 1].lip * DEG) : G[k];
     G[k] = gIn;
-    const land = clamp(2 * slope(pieces[k]) - gIn, -0.7, 0);
+    let land = clamp(2 * slope(pieces[k]) - gIn, -0.7, 0);
+    const next = k + 1 < N ? pieces[k + 1] : closed ? pieces[0] : null;
+    if (next && next.len > 0 && next.type !== 'LOOP') land = Math.max(land, Math.min(0, (3 * next.dh) / next.len));
     G[k + 1] = land;
   }
 

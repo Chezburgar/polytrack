@@ -1,8 +1,12 @@
-// Procedural audio: every sound is synthesised with WebAudio, so the game ships
-// no audio files. The context starts on the first user gesture (autoplay rules).
+// Audio: engines, tyres, wind and effects are synthesised with WebAudio; the
+// menu song streams from a file (the old step-sequencer tune stays as a
+// fallback if the file can't load). The context starts on the first user
+// gesture (autoplay rules).
 import { clamp } from '../util/math.js';
 
 const NOTE = (n) => 440 * Math.pow(2, (n - 69) / 12);
+const MENU_SONG = 'assets/audio/menu-music.mp3';
+const SONG_GAIN = 0.5; // the file is mastered loud; this sits it under the engines
 
 export class AudioEngine {
   constructor(settings) {
@@ -38,7 +42,11 @@ export class AudioEngine {
       if (this.pendingEngines) { this.startEngines(this.pendingEngines); this.pendingEngines = null; }
     }
     if (this.ctx.state === 'suspended' && !this.paused) this.ctx.resume();
+    // a play() refused before the gesture gets another go now
+    if (this.musicTrack === 'menu' && this.song?.paused) this._playSong();
   }
+
+  get running() { return !!this.ctx && this.ctx.state === 'running'; }
 
   applyVolumes() {
     if (!this.ctx) return;
@@ -168,7 +176,8 @@ export class AudioEngine {
     const focus = session.focus;
     const menu = session.mode === 'demo';
     const want = new Map();
-    if (focus && !menu) want.set(focus.id, { e: focus, positional: false });
+    // racing: your own car up close; menu backdrop: the car on camera, placed in 3D
+    if (focus) want.set(focus.id, { e: focus, positional: menu });
     const others = session.entries.filter((e) => e !== focus && e.kind !== 'ghost')
       .map((e) => ({ e, d: e.model.group.position.distanceToSquared(cam.position) }))
       .sort((a, b) => a.d - b.d).slice(0, menu ? 2 : 3);
@@ -181,11 +190,11 @@ export class AudioEngine {
         v = this._makeEngine(w.positional);
         this.engines.set(id, v);
       }
-      this._drive(v, w.e, t, session);
+      this._drive(v, w.e, t, session, menu);
     }
   }
 
-  _drive(v, e, t, session) {
+  _drive(v, e, t, session, menu = false) {
     const car = e.car;
     const speed = car ? car.speed : e.vel.length();
     let rpm = car ? car.rpm : 1200 + clamp(speed / 70, 0, 1) * 5800;
@@ -201,7 +210,7 @@ export class AudioEngine {
     v.filter.frequency.setTargetAtTime(260 + thr * 1500 + rpm * 0.28 + (boost ? 900 : 0), t, 0.05);
     v.nf.frequency.setTargetAtTime(f0 * 1.5 + 80, t, 0.05);
     v.ng.gain.setTargetAtTime(0.05 + thr * 0.16, t, 0.05);
-    const base = v.positional ? 0.5 : 0.24;
+    const base = v.positional ? (menu ? 0.42 : 0.5) : 0.24;
     v.out.gain.setTargetAtTime(base * (0.42 + thr * 0.45 + (boost ? 0.15 : 0)), t, 0.04);
     if (v.pan) {
       const p = e.model.group.position;
@@ -310,14 +319,63 @@ export class AudioEngine {
   }
 
   // ---- music ----------------------------------------------------------------------
-  // A small step sequencer: pad chords, a plucked arpeggio, bass and drums.
+  // Every menu screen (title, tracks, garage, lobby) shares the menu song, which
+  // carries on where it left off; races have no music.
   setMusic(name) {
     if (!this.ready) { this.pendingMusic = name; return; }
-    if (this.musicTrack === name) return;
-    this.musicTrack = name;
+    const want = name === 'lobby' ? 'menu' : name;
+    if (this.musicTrack === want) return;
+    this.musicTrack = want;
+    this._stopSeq();
+    if (want === 'menu' && !this.songFailed) { this._playSong(); return; }
+    this._pauseSong();
+    if (want) this._startSeq(want);
+  }
+
+  _songEl() {
+    if (this.song) return this.song;
+    const el = new Audio();
+    el.src = MENU_SONG;
+    el.loop = true;
+    el.preload = 'auto';
+    this.songGain = this.ctx.createGain();
+    this.songGain.gain.value = 0;
+    this.ctx.createMediaElementSource(el).connect(this.songGain).connect(this.music);
+    el.addEventListener('error', () => {
+      // no file (offline copy, blocked download): fall back to the synth tune
+      this.songFailed = true;
+      if (this.musicTrack === 'menu') { this.musicTrack = null; this.setMusic('menu'); }
+    });
+    this.song = el;
+    return el;
+  }
+
+  _playSong() {
+    const el = this._songEl();
+    clearTimeout(this._songPause);
+    const t = this.ctx.currentTime;
+    this.songGain.gain.cancelScheduledValues(t);
+    this.songGain.gain.setTargetAtTime(SONG_GAIN, t, 0.6);
+    const p = el.play();
+    if (p?.catch) p.catch(() => { /* not allowed yet - unlock() retries */ });
+  }
+
+  _pauseSong() {
+    if (!this.song) return;
+    const t = this.ctx.currentTime;
+    this.songGain.gain.cancelScheduledValues(t);
+    this.songGain.gain.setTargetAtTime(0, t, 0.25);
+    clearTimeout(this._songPause);
+    this._songPause = setTimeout(() => this.song.pause(), 1400);
+  }
+
+  _stopSeq() {
     if (this._seq) { clearInterval(this._seq); this._seq = null; }
-    if (this._musicOut) { const o = this._musicOut; o.gain.setTargetAtTime(0, this.ctx.currentTime, 0.4); setTimeout(() => o.disconnect(), 2000); }
-    if (!name) return;
+    if (this._musicOut) { const o = this._musicOut; o.gain.setTargetAtTime(0, this.ctx.currentTime, 0.4); setTimeout(() => o.disconnect(), 2000); this._musicOut = null; }
+  }
+
+  // A small step sequencer: pad chords, a plucked arpeggio, bass and drums.
+  _startSeq(name) {
     const c = this.ctx;
     const out = c.createGain();
     out.gain.value = 0;

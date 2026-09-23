@@ -14,13 +14,15 @@ import { ChaseCamera } from './camera.js';
 import { GhostRecorder, GhostPlayer } from './ghost.js';
 import { setStartLights } from '../render/trackview.js';
 import { SURF } from '../track/builder.js';
+import { frameAt } from '../track/geometry.js';
 import { clamp } from '../util/math.js';
-import { respawnReason, missedGate } from './rules.js';
+import { TrackLimits, missedGate } from './rules.js';
+import { collideCars } from '../physics/contact.js';
 
 export const DT = 1 / 120;
 const COUNT_RACE = 3.0;
 const COUNT_TT = 2.1;
-const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _q2 = new THREE.Quaternion();
+const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _q2 = new THREE.Quaternion(), _q3 = new THREE.Quaternion();
 
 export class Session {
   // opts: { def, mode: 'timetrial'|'race'|'online'|'demo', laps, player: {name, custom}, bots: [{name, custom, skill}],
@@ -105,13 +107,16 @@ export class Session {
     e.prevQuat = e.quat.clone();
     e.vel = new THREE.Vector3();
     e.wheelSpin = 0;
-    e.offTime = 0;
-    e.flipTime = 0;
     e.place = 0;
     if (kind === 'player' || kind === 'bot') {
       e.car = new Car(this.world);
       e.car.reset(e.pos, e.quat);
-      if (kind === 'bot') e.ai = new AIDriver(this.track, this.loaded.line, this.loaded.speeds, { skill, seed: slot + 1 });
+      e.limits = new TrackLimits(this.track);
+      if (kind === 'bot') {
+        e.ai = new AIDriver(this.track, this.loaded.line, this.loaded.speeds, { skill, seed: slot + 1 });
+        e.prog.update(e.pos);
+        e.ai.startLane(e.prog.lat, e.prog);
+      }
     }
     if (kind === 'remote') { e.snaps = []; e.lastSeen = 0; }
     e.prog.update(e.pos);
@@ -186,6 +191,8 @@ export class Session {
     }
     const racing = this.state !== 'countdown';
 
+    // 1. move everything
+    if (racing && (this._trafficT = (this._trafficT || 0) - dt) <= 0) { this._trafficT = 0.1; this._traffic(); }
     for (const e of this.entries) {
       if (e.car) {
         e.prevPos.copy(e.car.pos);
@@ -210,23 +217,11 @@ export class Session {
             else car.input.throttle = Math.min(car.input.throttle, car.forwardSpeed < 22 ? 0.6 : 0);
           }
         }
+        const rs = this.track.samples[e.prog.index];
+        car.rampLeft = rs.kind === 'K' && rs.road ? rs.l : null;
         car.step(dt);
-        e.prog.update(car.pos);
-        // boost pads
-        const sm = this.track.samples[e.prog.index];
-        if (sm.boost && Math.abs(e.prog.vert) < 1.6 && Math.abs(e.prog.lat) < sm.hw - 1) {
-          if (car.boost < 0.2) { this.emit('boost', { id: e.id }); }
-          car.boost = Math.max(car.boost, 1.35);
-        }
-        if (racing) {
-          const ev = e.race.cross(e.prevPos, car.pos, this.time, dt, car.forwardSpeed);
-          if (ev) this._gateEvent(e, ev);
-        }
-        this._autoRespawn(e, dt);
-        if (e.kind === 'player' && this.recorder && racing && !e.race.finished) this.recorder.sample(this.time, car.pos, car.quat, car.steer);
-        e.pos.copy(car.pos); e.quat.copy(car.quat); e.vel.copy(car.vel);
       } else if (e.kind === 'remote') {
-        this._remotePose(e);
+        this._remotePose(e, dt);
       } else if (e.kind === 'ghost') {
         e.prevPos.copy(e.pos); e.prevQuat.copy(e.quat);
         const t = Math.max(0, this.time);
@@ -234,6 +229,26 @@ export class Session {
         e.model.group.visible = racing ? alive || t < this.ghostPlayer.duration + 1 : true;
         e.prog.update(e.pos);
       }
+    }
+    // 2. cars that touch push each other apart
+    this._contacts();
+    // 3. progress, pads, gates, track limits
+    for (const e of this.entries) {
+      const car = e.car;
+      if (!car) continue;
+      e.prog.update(car.pos);
+      const sm = this.track.samples[e.prog.index];
+      if (sm.boost && Math.abs(e.prog.vert) < 1.6 && Math.abs(e.prog.lat) < sm.hw - 1) {
+        if (car.boost < 0.2) { this.emit('boost', { id: e.id }); }
+        car.boost = Math.max(car.boost, 1.35);
+      }
+      if (racing) {
+        const ev = e.race.cross(e.prevPos, car.pos, this.time, dt, car.forwardSpeed);
+        if (ev) this._gateEvent(e, ev);
+      }
+      this._autoRespawn(e, dt);
+      if (e.kind === 'player' && this.recorder && racing && !e.race.finished) this.recorder.sample(this.time, car.pos, car.quat, car.steer);
+      e.pos.copy(car.pos); e.quat.copy(car.quat); e.vel.copy(car.vel);
     }
     if (racing) this._standings();
     // gentle catch-up on the easier AI levels: bots ease off when far ahead of
@@ -255,11 +270,14 @@ export class Session {
     const e = this.entries.find((x) => x.id === id);
     if (!e || e.kind !== 'remote') return;
     const snaps = e.snaps;
-    if (snaps.length && m.ts < snaps[snaps.length - 1].ts - 1) snaps.length = 0; // their clock jumped (respawn/reset)
+    const last = snaps[snaps.length - 1];
+    if (last && m.ts < last.ts - 1) snaps.length = 0; // their clock jumped (reset)
+    else if (last && m.ts <= last.ts) return; // stale or duplicate
     snaps.push(m);
-    if (snaps.length > 40) snaps.shift();
+    if (snaps.length > 8) snaps.shift();
     e.completion = m.c;
     if (m.l != null) e.race.lap = m.l;
+    e.remoteGhost = !!m.g;
     e.lastSeen = this.clock;
   }
 
@@ -270,32 +288,98 @@ export class Session {
     if (e.kind === 'remote') { e.race.finished = true; e.race.finishTime = time; }
   }
 
-  // interpolate 120 ms behind on the shared race clock, extrapolate briefly if late
-  _remotePose(e) {
+  // Remote cars are shown where they are *now* on the shared race clock:
+  // dead-reckoned from their latest snapshot (velocity plus the acceleration
+  // and turn rate between the last two), with corrections blended in. Drawing
+  // them in the past would put a car racing alongside you metres behind where
+  // it really is - and cars now touch.
+  _remotePose(e, dt) {
     e.prevPos.copy(e.pos); e.prevQuat.copy(e.quat);
     const snaps = e.snaps;
     if (!snaps.length) return;
-    const t = this.time - 0.12;
-    let a = null, b = null;
-    for (let i = snaps.length - 1; i >= 0; i--) { if (snaps[i].ts <= t) { a = snaps[i]; b = snaps[i + 1] || null; break; } }
-    if (!a) a = snaps[0];
-    const set = (s, pos, quat) => { pos.set(s.p[0], s.p[1], s.p[2]); quat.set(s.q[0], s.q[1], s.q[2], s.q[3]).normalize(); };
-    if (b) {
-      const f = Math.min(1, Math.max(0, (t - a.ts) / Math.max(1e-3, b.ts - a.ts)));
-      set(a, e.pos, e.quat);
-      set(b, _v, _q2);
-      e.pos.lerp(_v, f);
-      e.quat.slerp(_q2, f);
-      e.vel.set(a.v[0] + (b.v[0] - a.v[0]) * f, a.v[1] + (b.v[1] - a.v[1]) * f, a.v[2] + (b.v[2] - a.v[2]) * f);
-    } else {
-      set(a, e.pos, e.quat);
-      const ahead = Math.min(0.25, Math.max(0, t - a.ts));
-      e.pos.x += a.v[0] * ahead; e.pos.y += a.v[1] * ahead; e.pos.z += a.v[2] * ahead;
-      e.vel.set(a.v[0], a.v[1], a.v[2]);
+    const a = snaps[snaps.length - 1], b = snaps.length > 1 ? snaps[snaps.length - 2] : null;
+    const ahead = clamp(this.time - a.ts, 0, 0.3);
+    const span = b ? a.ts - b.ts : 0;
+    let ax = 0, ay = 0, az = 0;
+    if (span > 0.02) {
+      ax = (a.v[0] - b.v[0]) / span; ay = (a.v[1] - b.v[1]) / span; az = (a.v[2] - b.v[2]) / span;
+      const al = Math.hypot(ax, ay, az);
+      if (al > 30) { ax *= 30 / al; ay *= 30 / al; az *= 30 / al; }
     }
+    const h2 = 0.5 * ahead * ahead;
+    _v.set(a.p[0] + a.v[0] * ahead + ax * h2, a.p[1] + a.v[1] * ahead + ay * h2, a.p[2] + a.v[2] * ahead + az * h2);
+    const jump = !e._seen || _v.distanceToSquared(e.pos) > 64; // first sight or a reset
+    if (jump) e.pos.copy(_v);
+    else e.pos.addScaledVector(e.vel, dt).lerp(_v, 1 - Math.exp(-dt * 10));
+    e.vel.set(a.v[0] + ax * ahead, a.v[1] + ay * ahead, a.v[2] + az * ahead);
+    _q2.set(a.q[0], a.q[1], a.q[2], a.q[3]).normalize();
+    if (span > 0.02 && ahead > 0) {
+      // keep turning at the rate it was turning between the last two snapshots
+      _q3.set(b.q[0], b.q[1], b.q[2], b.q[3]).normalize().invert().premultiply(_q2);
+      if (_q3.w < 0) { _q3.x = -_q3.x; _q3.y = -_q3.y; _q3.z = -_q3.z; _q3.w = -_q3.w; }
+      const sinH = Math.hypot(_q3.x, _q3.y, _q3.z);
+      const ang = 2 * Math.atan2(sinH, _q3.w);
+      if (sinH > 1e-6 && ang < 1.2) {
+        _v2.set(_q3.x / sinH, _q3.y / sinH, _q3.z / sinH);
+        _q3.setFromAxisAngle(_v2, ang * Math.min(ahead / span, 3));
+        _q2.premultiply(_q3);
+      }
+    }
+    if (jump) e.quat.copy(_q2); else e.quat.slerp(_q2, 1 - Math.exp(-dt * 12));
+    e._seen = true;
     e.steer = a.st || 0;
     e.boost = a.b;
     e.prog.update(e.pos);
+  }
+
+  // ---- cars touching -----------------------------------------------------------
+  // Nobody collides while "ghosted": just after being put back on the road (and
+  // until clear of other cars), once finished, or the personal-best ghost.
+  ghosted(e) {
+    if (e.kind === 'ghost') return true;
+    if (e.race?.finished || e.finishTime != null) return true;
+    if (e.kind === 'remote') return !!e.remoteGhost;
+    return e.ghostUntil > this.clock;
+  }
+
+  _contacts() {
+    const list = this._bodies || (this._bodies = []);
+    list.length = 0;
+    for (const e of this.entries) {
+      if (e.kind === 'ghost' || !e.model.group.visible) continue;
+      // a ghost period ends only once the car is clear of everybody
+      if (e.ghostUntil && e.ghostUntil <= this.clock) {
+        const p = e.car ? e.car.pos : e.pos;
+        const blocked = this.entries.some((o) => o !== e && o.kind !== 'ghost' && !this.ghosted(o) && (o.car ? o.car.pos : o.pos).distanceToSquared(p) < 5 * 5);
+        if (blocked) e.ghostUntil = this.clock + 0.2; else e.ghostUntil = 0;
+      }
+      if (this.ghosted(e)) continue;
+      const b = e._body || (e._body = { pos: null, vel: null, fwd: new THREE.Vector3(), up: new THREE.Vector3(), car: null });
+      if (e.car) { b.pos = e.car.pos; b.vel = e.car.vel; b.fwd.copy(e.car.fwd); b.up.copy(e.car.up); b.car = e.car; }
+      else { b.pos = e.pos; b.vel = e.vel; b.fwd.set(0, 0, 1).applyQuaternion(e.quat); b.up.set(0, 1, 0).applyQuaternion(e.quat); b.car = null; }
+      b.e = e;
+      list.push(b);
+    }
+    for (let i = 0; i < list.length; i++) {
+      for (let k = i + 1; k < list.length; k++) {
+        const A = list[i], B = list[k];
+        if (!A.car && !B.car) continue; // two remote cars: their owners sort it out
+        const j = collideCars(A, B);
+        if (j > 1500 && (A.e === this.focus || B.e === this.focus)) this.emit('bump', { j });
+      }
+    }
+  }
+
+  // what each AI driver can see of the cars around it (refreshed 10x a second)
+  _traffic() {
+    const cars = [];
+    for (const e of this.entries) {
+      if (e.kind === 'ghost' || this.ghosted(e) || !e.model.group.visible) continue;
+      const sm = this.track.samples[e.prog.index];
+      const v = e.car ? e.car.vel : e.vel;
+      cars.push({ e, s: e.prog.s ?? sm.s, lat: e.prog.lat, v: v.x * sm.t.x + v.y * sm.t.y + v.z * sm.t.z });
+    }
+    for (const e of this.entries) if (e.ai) e.ai.traffic = cars.filter((c) => c.e !== e);
   }
 
   _gateEvent(e, ev) {
@@ -320,26 +404,33 @@ export class Session {
     if (ev.kind === 'finish') e.finishTime = ev.time;
   }
 
+  // Track limits: off the road a 3 s clock runs (the HUD shows it) and you're
+  // put back where you left; skipping a gate or cutting the course sends you
+  // back too. There is no manual respawn.
   _autoRespawn(e, dt) {
-    let why = respawnReason(e, e.car, e.prog, this.track, dt, { patient: e.kind === 'player' });
-    if (!why && this.state !== 'countdown' && this.clock - (e.lastRespawn || -9) > 1.5 && missedGate(e.race, e.prog, this.track)) {
-      why = 'missed';
-      if (e === this.focus) this.message('MISSED CHECKPOINT', 'warn', 2.2);
-    }
+    if (this.state === 'countdown') return;
+    let why = e.race.finished && !this.track.closed ? null : e.limits.update(e.car, e.prog, dt);
+    if (!why && this.clock - (e.lastRespawn || -9) > 1.5 && missedGate(e.race, e.prog, this.track)) why = 'missed';
     if (e.ai?.wantRespawn) { e.ai.wantRespawn = false; why = 'stuck'; }
-    if (why) this.respawn(e, why);
+    if (!why) return;
+    if (e === this.focus) {
+      if (why === 'missed') this.message('MISSED CHECKPOINT', 'warn', 2.2);
+      else if (why === 'cut') this.message('SHORTCUT - PUT BACK', 'warn', 2.2);
+    }
+    this.respawn(e, why);
   }
 
-  respawn(e, why = 'manual') {
+  respawn(e, why) {
     if (!e.car || this.state === 'countdown') return;
-    const r = e.race.respawn;
+    const r = why === 'missed' ? e.race.respawn : e.limits.placement(why, e.prog, this.loaded.speeds);
     e.car.reset(r.pos, r.quat, r.speed || 0);
     e.prevPos.copy(r.pos); e.prevQuat.copy(r.quat);
     e.prog.reset(r.index ?? this.track.start.index);
     e.prog.update(e.car.pos);
     e.race.respawns++;
     e.lastRespawn = this.clock;
-    e.offTime = 0; e.flipTime = 0; e.stallAir = 0;
+    e.limits.reset();
+    e.ghostUntil = this.clock + 2; // pass through other cars until clear of them
     if (e.ai) { e.ai.stuck = 0; e.ai.reverseTime = 0; e.ai.fails = 0; }
     for (let w = 0; w < 4; w++) this.effects.endSkid(e.id + w);
     if (e === this.focus) this.camera.snap(this._camTarget(e));
@@ -374,22 +465,22 @@ export class Session {
         e.model.setBoost(e.car.boost > 0 ? Math.min(1, e.car.boost * 1.4) : 0, t);
         this._carEffects(e, dt);
       } else {
-        g.position.lerpVectors(e.prevPos, e.pos, e.kind === 'ghost' ? alpha : 1);
-        g.quaternion.slerpQuaternions(e.prevQuat, e.quat, e.kind === 'ghost' ? alpha : 1);
+        g.position.lerpVectors(e.prevPos, e.pos, alpha);
+        g.quaternion.slerpQuaternions(e.prevQuat, e.quat, alpha);
         const sp = e.vel.length();
         e.wheelSpin = (e.wheelSpin + (sp / 0.36) * dt) % (Math.PI * 2);
         e.model.syncWheels([0, 1, 2, 3].map((i) => ({ comp: 0.087, steerAngle: i < 2 ? (e.steer || 0) * 0.3 : 0, spin: e.wheelSpin })));
         e.model.setBoost(e.boost ? 1 : 0, t);
       }
     }
-    // remote & ghost cars fade when they overlap the focus car
-    if (this.focus) {
-      for (const e of this.entries) {
-        if (e === this.focus || e.kind === 'ghost') continue;
-        const d = e.model.group.position.distanceTo(this.focus.model.group.position);
-        const a = e.kind === 'remote' || this.mode === 'online' ? clamp((d - 3) / 7, 0.35, 1) : 1;
-        if (Math.abs((e._alpha ?? 1) - a) > 0.05) { e._alpha = a; e.model.setOpacity(a); }
-      }
+    // see-through while ghosted: just put back on the road, or (other cars)
+    // already finished - you drive through them
+    for (const e of this.entries) {
+      if (e.kind === 'ghost') continue;
+      const reset = e.kind === 'remote' ? e.remoteGhost : e.ghostUntil > t;
+      const done = e !== this.focus && (e.race.finished || e.finishTime != null);
+      const a = reset ? 0.4 : done ? 0.55 : 1;
+      if (Math.abs((e._alpha ?? 1) - a) > 0.05) { e._alpha = a; e.model.setOpacity(a); }
     }
     const focus = this.focus;
     if (focus) {
@@ -408,6 +499,10 @@ export class Session {
   _camTarget(e) {
     const g = e.model.group;
     const q = g.quaternion;
+    // the road frame under the car, while the car is actually on (or just over) it
+    const pr = e.prog;
+    const sm = this.track.samples[pr.index];
+    const near = sm && sm.road && Math.abs(pr.lat) < sm.hw + 3 && pr.vert > -2 && pr.vert < 4;
     return {
       pos: g.position,
       quat: q,
@@ -415,6 +510,8 @@ export class Session {
       up: _v2.set(0, 1, 0).applyQuaternion(q).clone(),
       vel: e.car ? e.car.vel : e.vel,
       boost: e.car ? e.car.boost : 0,
+      grounded: e.car ? e.car.grounded : true,
+      road: near ? frameAt(this.track, pr.s ?? sm.s) : null,
     };
   }
 
@@ -476,6 +573,7 @@ export class Session {
       finished: e?.race.finished,
       finishTime: e?.race.finishTime,
       respawns: e?.race.respawns || 0,
+      offTrack: car && e.limits && !e.race.finished ? e.limits.left : null,
       name: e?.name,
     };
   }

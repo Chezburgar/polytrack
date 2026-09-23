@@ -74,9 +74,9 @@ export class SettingsScreen {
       sec('Controls',
         h('div.keys',
           ...[['Accelerate', 'W / ↑', 'RT'], ['Brake / reverse', 'S / ↓', 'LT'], ['Steer', 'A D / ← →', 'Left stick'], ['Drift (handbrake)', 'Space / Shift', 'RB'],
-            ['Respawn at checkpoint', 'R / Enter', 'B'], ['Restart (time trial)', 'Backspace', 'Back'], ['Change camera', 'C', 'X'], ['Look back', 'Q', ''], ['Pause', 'Esc / P', 'Start']]
+            ['Restart (time trial)', 'Backspace', 'Back'], ['Chat (online)', 'Enter / T', ''], ['Change camera', 'C', 'X'], ['Look back', 'Q', ''], ['Pause', 'Esc / P', 'Start']]
             .map(([a, k, p]) => h('div.key-row', h('span', a), h('kbd', k), p ? h('kbd.pad', p) : h('span')))),
-        h('p.note', 'In the air, accelerate/brake pitch the car and steering spins it - use it to line up landings.')),
+        h('p.note', 'Off the track a 3 second clock runs: get back on, or you are put back where you left the road. In the air the car lines itself up for the landing - brake lifts the nose, steering turns it while held.')),
       sec('Data',
         row('Reset records and ghosts', button('Reset', () => this.reset(), 'danger small')),
         row('Restore default settings', button('Defaults', () => { Object.assign(this.app.settings, DEFAULT_SETTINGS, { name: this.app.settings.name }); this.app.setQuality(this.app.settings.quality); this.app.audio.applyVolumes(); this.render(); }, 'small'))),

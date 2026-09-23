@@ -26,7 +26,6 @@ export class TouchControls {
         pad('brake', 'BRAKE', () => { t.brake = 1; }, () => { t.brake = 0; }),
         pad('gas', 'GAS', () => { t.throttle = 1; }, () => { t.throttle = 0; })),
       h('div.touch-top',
-        pad('resp', '↺', () => app.input.emit('respawn')),
         pad('pause', 'II', () => app.input.emit('pause'))));
     this.active = false;
     this.refresh();

@@ -138,7 +138,7 @@ export const TRACKS = [
     blurb: 'Narrow bridges over the lava sea.',
     pieces: [
       'S 60', 'S 40 w12', 'R 60 r50', 'S 65', 'K 12 a12', 'J 28 d2', 'S 60 cp', 'L 120 r40 b10 wall',
-      'S 40 w11 nowall', 'R 45 r60', 'L 45 r60', 'S 65 boost', 'K 12 a12', 'J 32 d3', 'S 70 w14',
+      'S 40 w11 nowall', 'R 45 r60', 'L 45 r60', 'S 65', 'K 12 a12', 'J 32 d3', 'S 100 w14',
       'R 150 r40 b12 cp', 'S 50 u6', 'S 20', 'K 10 a12', 'J 30 d6', 'S 70', 'L 70 r45',
       'S 40 w10 nowall', 'R 70 r45', 'S 60 boost', 'S 40',
     ],

@@ -3,7 +3,7 @@
 //
 // Body frame: +X left, +Y up, +Z forward (right-handed). Positions are the
 // centre of mass. Runs in Node (headless sims, AI validation) and the browser.
-import { Vector3, Quaternion } from 'three';
+import { Vector3, Quaternion, Matrix4 } from 'three';
 import { clamp, lerp } from '../util/math.js';
 import { SURF } from '../track/builder.js';
 
@@ -47,9 +47,23 @@ export const CAR_SPEC = {
   slipAssist: 9,
   maxYaw: 2.3,
   assistMax: 9,
-  airPitch: 3.2,
-  airYaw: 2.4,
-  airRoll: 2.2,
+  // In the air the car eases itself toward its flight path and the predicted
+  // landing surface. Inputs only bias that target (radians / rad per second),
+  // so holding accelerate over a long jump never flips the car.
+  airAssist: 4.5,
+  airMaxRate: 3.2,
+  airNoseUp: 0.4,
+  airNoseDown: 0.1,
+  airYawRate: 1.3,
+  airYawMax: 0.55,
+  // tyre grip stops growing past this load (N per wheel): a kicker or a hard
+  // landing briefly loads the tyres 4x, which made a steering tap on a ramp
+  // throw the car sideways far harder than the same tap on flat road
+  gripLoadCap: 6800,
+  // on a kicker ramp (the race tells the car via rampLeft): steering is
+  // softened and drift across the ramp damped, so jumps launch straight
+  rampSteer: 0.35,
+  rampDamp: 3.5,
   boostAccel: 14,
   bodyRadius: 0.46,
   bodySpheres: [
@@ -76,7 +90,9 @@ const _hit = { t: 0, px: 0, py: 0, pz: 0, nx: 0, ny: 1, nz: 0, mat: 0, tri: -1 }
 const _contacts = [];
 const _v = new Vector3(), _r = new Vector3(), _f = new Vector3(), _t = new Vector3(), _tmp = new Vector3(), _tmp2 = new Vector3();
 const _tmp3 = new Vector3(), _ang = new Vector3();
-const _q = new Quaternion(), _qi = new Quaternion();
+const _q = new Quaternion(), _qi = new Quaternion(), _qt = new Quaternion(), _qe = new Quaternion();
+const _U = new Vector3(), _F = new Vector3(), _Lv = new Vector3(), _m4 = new Matrix4();
+const WORLD_UP = new Vector3(0, 1, 0);
 
 export class Car {
   constructor(world, spec = CAR_SPEC) {
@@ -110,6 +126,10 @@ export class Car {
     this.landing = 0;
     this.onKill = false;
     this.surface = SURF.asphalt;
+    this.landN = null; // predicted landing surface normal while airborne
+    this._landVec = new Vector3();
+    this.airYawOff = 0;
+    this.rampLeft = null; // the ramp's sideways direction while on a kicker (set by the race)
     this.updateBasis();
   }
 
@@ -123,6 +143,9 @@ export class Car {
     this.rearGrip = 1;
     this.boost = 0;
     this.airTime = 0;
+    this.airYawOff = 0;
+    this.landN = null;
+    this._landT = 0;
     this.speed = Math.abs(speed);
     this.forwardSpeed = speed;
     this.gear = 1;
@@ -150,6 +173,8 @@ export class Car {
     this.scrape = 0;
     this.landing = 0;
     this._smoothInputs(dt);
+    // braking cancels a boost pad's push, so a pad before a corner is never a trap
+    if (this.boost > 0 && this.input.brake > 0.3 && this.forwardSpeed > 2) this.boost = 0;
     for (let i = 0; i < substeps; i++) this._substep(h);
     this.speed = this.vel.length();
     this.forwardSpeed = this.vel.dot(this.fwd);
@@ -218,7 +243,7 @@ export class Car {
 
     // steering angle shrinks with speed
     const steerMax = s.minSteer + (s.maxSteer - s.minSteer) / (1 + (absV / s.steerFalloff) ** 2);
-    const steerAngle = this.steer * steerMax;
+    const steerAngle = this.steer * steerMax * (this.rampLeft ? s.rampSteer : 1);
 
     // engine / brake demand
     const thr = clamp(this.input.throttle, 0, 1);
@@ -265,7 +290,9 @@ export class Car {
           // progressive damping: hard landings are soaked up instead of bouncing
           const dmp = compVel > 0 ? s.damperC * (compVel > 3 ? 1 + Math.min(2, (compVel - 3) * 0.35) : 1) : s.reboundC;
           let F = s.springK * comp + dmp * compVel;
-          if (comp > s.maxComp) F += s.bumpK * (comp - s.maxComp) + 4 * s.damperC * Math.max(0, compVel);
+          // bump stop: stiff, and heavily damped both ways so a hard landing is
+          // soaked up instead of springing the car back into the air
+          if (comp > s.maxComp) F += s.bumpK * (comp - s.maxComp) + 4 * s.damperC * compVel;
           if (!wasContact && compVel > 4) this.landing = Math.max(this.landing, compVel);
           loads[i] = Math.max(0, F);
         }
@@ -317,7 +344,7 @@ export class Car {
 
       const surf = SURFACE[w.surf] || SURFACE[0];
       let mu = s.mu * surf.grip;
-      const Fmax = mu * N;
+      const Fmax = mu * Math.min(N, s.gripLoadCap);
       // lateral: slip-angle-like saturation, slight falloff once sliding
       const sat = s.latSat + s.latSatSpeed * Math.abs(vl);
       let x = vs / sat;
@@ -370,15 +397,10 @@ export class Car {
 
     // ---- air control ------------------------------------------------------
     if (!grounded) {
-      const pitch = (thr - brk) * s.airPitch; // throttle noses down
-      const yaw = this.input.steer * s.airYaw;
-      _tmp.copy(left).multiplyScalar(pitch).addScaledVector(up, yaw);
-      // gentle roll levelling so you land on your wheels, not your door
-      const rollW = Math.asin(clamp(left.y, -1, 1));
-      _tmp.addScaledVector(fwd, (-rollW * 3.2 - this.angVel.dot(fwd) * 1.2) * (this.airTime > 0.12 ? 1 : 0));
-      this.angVel.addScaledVector(_tmp, h);
-      this.angVel.multiplyScalar(1 - h * 0.6);
+      this._airAttitude(h, thr, brk);
     } else {
+      this.airYawOff = 0;
+      this._landT = 0;
       // roll stabiliser: past ~20 degrees of roll against the surface, push back
       let nx = 0, ny = 0, nz = 0;
       for (const w of wheels) if (w.contact) { nx += w.nx; ny += w.ny; nz += w.nz; }
@@ -392,6 +414,7 @@ export class Car {
 
     // ---- integrate ----------------------------------------------------------
     this.vel.addScaledVector(force, h / m);
+    if (this.rampLeft && grounded) this.vel.addScaledVector(this.rampLeft, -this.vel.dot(this.rampLeft) * (1 - Math.exp(-h * s.rampDamp)));
     this._applyInvI(torque, _tmp2);
     this.angVel.addScaledVector(_tmp2, h);
     this.pos.addScaledVector(this.vel, h);
@@ -402,6 +425,65 @@ export class Car {
     q.normalize();
 
     this._collide(h);
+  }
+
+  // Airborne: turn the car toward its flight direction laid onto the surface it
+  // is about to land on, so it touches down on all four wheels pointing where
+  // it is going. Brake lifts the nose, accelerate dips it slightly, and
+  // steering yaws the car only while held (it drifts back in line after).
+  _airAttitude(h, thr, brk) {
+    const s = this.spec;
+    this._landT = (this._landT || 0) - h;
+    if (!(this._landT > 0)) { this._landT = 0.08; this._predictLanding(); }
+    const U = _U.copy(this.landN || WORLD_UP);
+    const F = _F.copy(this.vel).addScaledVector(U, -this.vel.dot(U));
+    if (F.lengthSq() < 9) F.copy(this.fwd).addScaledVector(U, -this.fwd.dot(U)); // barely moving: keep the heading
+    if (F.lengthSq() < 1e-8) F.copy(this.up).addScaledVector(U, -this.up.dot(U)); // nose straight up or down
+    if (F.lengthSq() < 1e-8) return;
+    F.normalize();
+    const st = clamp(this.input.steer, -1, 1);
+    if (Math.abs(st) > 0.05) this.airYawOff = clamp((this.airYawOff || 0) + st * s.airYawRate * h, -s.airYawMax, s.airYawMax);
+    else this.airYawOff = (this.airYawOff || 0) * Math.exp(-h * 1.5);
+    if (this.airYawOff) F.applyAxisAngle(U, this.airYawOff);
+    const Lv = _Lv.crossVectors(U, F).normalize();
+    const bias = brk * s.airNoseUp - thr * s.airNoseDown;
+    if (bias) { F.applyAxisAngle(Lv, -bias); U.applyAxisAngle(Lv, -bias); }
+    _m4.makeBasis(Lv, U, F);
+    _qt.setFromRotationMatrix(_m4);
+    // world-frame rotation from where the car points to where it should
+    _qe.copy(_qt).multiply(_qi.copy(this.quat).invert());
+    if (_qe.w < 0) { _qe.x = -_qe.x; _qe.y = -_qe.y; _qe.z = -_qe.z; _qe.w = -_qe.w; }
+    const w = clamp(_qe.w, -1, 1);
+    const sinH = Math.sqrt(Math.max(0, 1 - w * w));
+    const k = sinH > 1e-6 ? (2 * Math.acos(w)) / sinH : 2;
+    _ang.set(_qe.x * k, _qe.y * k, _qe.z * k).multiplyScalar(s.airAssist);
+    const len = _ang.length();
+    if (len > s.airMaxRate) _ang.multiplyScalar(s.airMaxRate / len);
+    // eases in over the first fifth of a second so bumps and crests feel natural
+    const grip = 7 * clamp((this.airTime - 0.04) / 0.16, 0, 1);
+    this.angVel.lerp(_ang, 1 - Math.exp(-h * grip));
+    this.angVel.multiplyScalar(1 - h * 0.6);
+  }
+
+  // Follow the ballistic arc until it meets something; remember the normal of
+  // the surface we will land on (steep walls don't count).
+  _predictLanding() {
+    const g = this.spec.gravity;
+    const p = this.pos, v = this.vel;
+    this.landN = null;
+    this.landIn = null;
+    let x0 = p.x, y0 = p.y - 0.55, z0 = p.z;
+    for (let i = 1; i <= 60; i++) {
+      const t = i * 0.06;
+      const x1 = p.x + v.x * t, y1 = p.y - 0.55 + v.y * t - 0.5 * g * t * t, z1 = p.z + v.z * t;
+      const dx = x1 - x0, dy = y1 - y0, dz = z1 - z0;
+      const len = Math.hypot(dx, dy, dz);
+      if (len > 1e-6 && this.world.raycast(x0, y0, z0, dx / len, dy / len, dz / len, len, _hit)) {
+        if (_hit.ny > 0.35) { this.landN = this._landVec.set(_hit.nx, _hit.ny, _hit.nz); this.landIn = t; }
+        return;
+      }
+      x0 = x1; y0 = y1; z0 = z1;
+    }
   }
 
   // Arcade stability assist: damps yaw beyond what the steering asks for and
@@ -456,14 +538,17 @@ export class Car {
           _tmp2.crossVectors(_r, _tmp);
           this._applyInvI(_tmp2, _tmp2);
           const angTerm = _tmp.dot(_tmp3.crossVectors(_tmp2, _r));
-          const e = 0.12;
+          // the underside meeting the road (a hard landing) neither bounces nor
+          // scrubs off speed; a door or bumper hitting a wall does
+          const belly = c.nx * this.up.x + c.ny * this.up.y + c.nz * this.up.z > 0.6;
+          const e = belly ? 0 : 0.12;
           const j = (-(1 + e) * vn) / (1 / m + angTerm);
           this._impulse(_tmp.x * j, _tmp.y * j, _tmp.z * j, _r);
           // friction
           const tx = _v.x - c.nx * vn, ty = _v.y - c.ny * vn, tz = _v.z - c.nz * vn;
           const vt = Math.hypot(tx, ty, tz);
           if (vt > 1e-4) {
-            const mu = c.mat === SURF.wall ? 0.22 : 0.4;
+            const mu = belly ? 0.05 : c.mat === SURF.wall ? 0.22 : 0.4;
             const jt = Math.min(mu * j, (vt * m) / 3);
             this._impulse((-tx / vt) * jt, (-ty / vt) * jt, (-tz / vt) * jt, _r);
           }

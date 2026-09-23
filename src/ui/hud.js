@@ -3,6 +3,7 @@ import { h } from './dom.js';
 import { drawTrack, mapTransform } from './trackmap.js';
 import { formatTime, formatDelta, clamp } from '../util/math.js';
 import { Vector3 } from 'three';
+import { OFF_TRACK_LIMIT } from '../game/rules.js';
 
 const _p = new Vector3();
 
@@ -34,12 +35,17 @@ export class HUD {
     this.count = h('div.hud-count');
     this.msg = h('div.hud-msg');
     this.center.append(this.count, this.msg);
+    // off-track clock: a ring that drains over the 3 seconds you have to get back on
+    this.offNum = h('b', '3');
+    this.offEl = h('div.hud-off', { html: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="28"/><circle class="fg" cx="32" cy="32" r="28" pathLength="100"/></svg>' },
+      this.offNum, h('span', 'OFF TRACK'), h('small', 'Get back on the road'));
+    this.offRing = this.offEl.querySelector('.fg');
     this.standings = h('div.hud-standings');
     this.hint = h('div.hud-hint');
     this.fps = h('div.hud-fps');
     this.tagLayer = h('div.hud-tags');
     this.tags = new Map();
-    this.el.append(this.tagLayer, this.top, this.left, this.map, this.speedo, this.center, this.standings, this.hint, this.fps);
+    this.el.append(this.tagLayer, this.top, this.left, this.map, this.speedo, this.center, this.offEl, this.standings, this.hint, this.fps);
     this.cache = {};
     this.splitUntil = 0;
     this.countUntil = 0;
@@ -54,8 +60,8 @@ export class HUD {
     this.mapT = T;
     const mode = session.mode;
     const kb = this.app.input.lastDevice === 'gamepad'
-      ? 'B respawn · Back restart · X camera · Start pause'
-      : mode === 'timetrial' ? 'R respawn · Backspace restart · C camera · Space drift · Esc pause' : 'R respawn · C camera · Space drift · Esc pause';
+      ? (mode === 'timetrial' ? 'Back restart · ' : '') + 'X camera · Start pause'
+      : (mode === 'timetrial' ? 'Backspace restart · ' : mode === 'online' ? 'Enter chat · ' : '') + 'C camera · Space drift · Esc pause';
     this.hint.textContent = kb;
     this.hint.classList.remove('fade');
     clearTimeout(this.hintTimer);
@@ -69,6 +75,7 @@ export class HUD {
     this.cache = {};
     this.tagLayer.replaceChildren();
     this.tags.clear();
+    this.standings.replaceChildren(); // the last race's drivers must not linger through this countdown
   }
 
   set(key, el, value, prop = 'textContent') {
@@ -121,6 +128,12 @@ export class HUD {
     else if (d.messages.length) { const last = d.messages[d.messages.length - 1]; m = last.text; cls = last.kind; }
     this.set('msg', this.msg, m);
     this.set('msgc', this.msg, 'hud-msg ' + cls + (m ? ' show' : ''), 'className');
+    const off = d.state === 'countdown' ? null : d.offTrack;
+    this.set('off', this.offEl, 'hud-off' + (off != null ? ' show' : '') + (off != null && off < 1 ? ' late' : ''), 'className');
+    if (off != null) {
+      this.set('offn', this.offNum, String(Math.max(1, Math.ceil(off))));
+      this.offRing.style.strokeDashoffset = ((1 - off / OFF_TRACK_LIMIT) * 100).toFixed(1);
+    }
     this.drawMap(s);
     this.drawTags(s);
     if (s.standings && this.standings.style.display !== 'none' && (this._stT = (this._stT || 0) + dt) > 0.25) {

@@ -16,11 +16,10 @@ export class PauseOverlay {
         online ? h('p.note', 'The race keeps running while this menu is open.') : null,
         button('Resume', () => { app.audio.play('select'); if (online) ui.closeOverlay(); else app.resume(); }, 'primary big wide'),
         s?.mode !== 'online' ? button('Restart', () => { app.audio.play('select'); app.restartRace(); }, 'big wide') : null,
-        button('Respawn at checkpoint', () => { ui.closeOverlay(); if (!online) app.resume(); s?.respawn(s.player); }, 'wide'),
         online && app.net?.isHost ? button('End race for everyone', () => { app.net.endRace(); ui.closeOverlay(); }, 'wide') : null,
         button('Settings', () => { app.audio.play('select'); ui.overlay('settings'); }, 'wide'),
         button('Full screen', () => toggleFullscreen(), 'wide'),
-        button(online ? 'Leave room' : 'Quit to menu', () => app.quitRace(), 'wide danger'),
+        button(online ? 'Leave room' : app.lastRace?.editor ? 'Back to editor' : 'Quit to menu', () => app.quitRace(), 'wide danger'),
       ));
   }
 }

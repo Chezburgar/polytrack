@@ -1,6 +1,6 @@
 // Visual themes. Every colour is an sRGB hex; geometry converts to linear.
 // ground: 'grass' | 'sand' | 'snow' (drivable, slow) | 'water' | 'lava' (instant
-// respawn) | 'void' (nothing below - fall and you respawn).
+// reset onto the road) | 'void' (nothing below - fall and you are put back).
 const ROAD = {
   road: 0x4b4f59, line: 0xf2f2f2, curbA: 0xe8433a, curbB: 0xf5f5f5, shoulder: 0x3f434c,
   slab: 0xb8b2a6, slabDark: 0x8f897d, wall: 0xe9e6df, wallA: 0xe8433a, wallB: 0xf5f5f5,
