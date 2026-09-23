@@ -1,4 +1,5 @@
-// Audio: engines, tyres, wind and effects are synthesised with WebAudio; the
+// Audio: engines, tyres, wind and effects are synthesised with WebAudio (races
+// only - the menu backdrop is silent apart from the music); the
 // menu song streams from a file (the old step-sequencer tune stays as a
 // fallback if the file can't load). The context starts on the first user
 // gesture (autoplay rules).
@@ -176,8 +177,9 @@ export class AudioEngine {
     const focus = session.focus;
     const menu = session.mode === 'demo';
     const want = new Map();
-    // racing: your own car up close; menu backdrop: the car on camera, placed in 3D
-    if (focus) want.set(focus.id, { e: focus, positional: menu });
+    // the menu backdrop is silent (just the music); in a race: your car plus the nearest others
+    if (menu) { for (const [id, v] of this.engines) { this._killVoice(v); this.engines.delete(id); } return; }
+    if (focus) want.set(focus.id, { e: focus, positional: false });
     const others = session.entries.filter((e) => e !== focus && e.kind !== 'ghost')
       .map((e) => ({ e, d: e.model.group.position.distanceToSquared(cam.position) }))
       .sort((a, b) => a.d - b.d).slice(0, menu ? 2 : 3);

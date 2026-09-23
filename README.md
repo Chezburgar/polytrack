@@ -51,7 +51,8 @@ points. Braking cancels a boost pad's push.
 - **Race vs AI** - one to seven bots at four difficulty levels, laps adjustable
   on circuits.
 - **Multiplayer** - create a room and share its five-letter code (or the invite
-  link). Players connect peer-to-peer through the public PeerJS broker; the host
+  link). Players connect peer-to-peer through the public PeerJS broker, with
+  Metered TURN relays for networks that block direct connections; the host
   relays positions and runs any AI drivers, and the race clock is the host's, so
   finish times are fair. Chat in the lobby (with quick messages) and during the
   race. The host can pick any of their own tracks; it is sent to everyone.

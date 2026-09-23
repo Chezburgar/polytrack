@@ -8,6 +8,29 @@
 
 export const PROTO = 'polytrack-v1';
 
+// ICE servers (STUN + TURN relays) from Metered, so players behind strict
+// networks can still connect through a relay. Fetched once; if the request
+// fails we fall back to PeerJS's default STUN servers.
+const TURN_URL = 'https://ggvault.metered.live/api/v1/turn/credentials?apiKey=59ed4b28ab73a921293dfaee47c2137ee3f3';
+let icePromise = null;
+export function iceServers() {
+  if (!icePromise) {
+    icePromise = (async () => {
+      try {
+        const ctl = new AbortController();
+        const timer = setTimeout(() => ctl.abort(), 5000);
+        const res = await fetch(TURN_URL, { signal: ctl.signal });
+        clearTimeout(timer);
+        const list = await res.json();
+        if (Array.isArray(list) && list.length) return list;
+      } catch (e) { console.warn('TURN credentials unavailable, using STUN only', e); }
+      icePromise = null; // try again next time
+      return null;
+    })();
+  }
+  return icePromise;
+}
+
 class Base {
   constructor() {
     this.handlers = { peer: [], data: [], leave: [], close: [], error: [] };
@@ -24,16 +47,19 @@ export class PeerTransport extends Base {
     this.peer = null;
   }
 
-  _peer(id) {
+  _peer(id, ice) {
     const Peer = window.Peer;
     if (!Peer) throw new Error('Multiplayer library failed to load.');
-    return id ? new Peer(id, { debug: 1 }) : new Peer({ debug: 1 });
+    const opts = { debug: 1 };
+    if (ice) opts.config = { iceServers: ice };
+    return id ? new Peer(id, opts) : new Peer(opts);
   }
 
-  host(code) {
+  async host(code) {
     this.role = 'host';
+    const ice = await iceServers();
     return new Promise((resolve, reject) => {
-      const peer = (this.peer = this._peer(`${PROTO}-${code}`.toLowerCase()));
+      const peer = (this.peer = this._peer(`${PROTO}-${code}`.toLowerCase(), ice));
       let opened = false;
       peer.on('open', (id) => { opened = true; this.selfId = id; resolve(id); });
       peer.on('connection', (conn) => this._wire(conn));
@@ -46,10 +72,11 @@ export class PeerTransport extends Base {
     });
   }
 
-  join(code) {
+  async join(code) {
     this.role = 'guest';
+    const ice = await iceServers();
     return new Promise((resolve, reject) => {
-      const peer = (this.peer = this._peer(null));
+      const peer = (this.peer = this._peer(null, ice));
       let done = false;
       const fail = (e) => { if (!done) { done = true; reject(e); } };
       const timer = setTimeout(() => fail(Object.assign(new Error('Timed out reaching the room. The host may be behind a strict firewall.'), { type: 'timeout' })), 15000);
