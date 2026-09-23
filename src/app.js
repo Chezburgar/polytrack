@@ -17,7 +17,7 @@ import { randomBotCar, BOT_NAMES } from './car/presets.js';
 export const VERSION = '1.0.0';
 
 export const DEFAULT_SETTINGS = {
-  quality: 'high', camera: 'chase', fov: 70, units: 'kmh', master: 0.8, music: 0.5, sfx: 0.8,
+  quality: 'auto', camera: 'chase', fov: 70, units: 'kmh', master: 0.8, music: 0.5, sfx: 0.8,
   showFps: false, ghost: true, touch: 'auto', shake: true, name: '',
 };
 
@@ -25,14 +25,17 @@ export class App {
   constructor() {
     this.canvas = document.getElementById('game');
     this.settings = { ...DEFAULT_SETTINGS, ...load('settings', {}) };
-    if (!['low', 'medium', 'high', 'ultra'].includes(this.settings.quality)) this.settings.quality = 'high';
+    if (!['auto', 'low', 'medium', 'high', 'ultra'].includes(this.settings.quality)) this.settings.quality = 'auto';
     const params = new URLSearchParams(location.search);
     this.params = params;
     if (params.get('quality')) this.settings.quality = params.get('quality');
     this.profile = load('profile', null) || { name: '', car: { ...DEFAULT_CAR }, created: Date.now() };
     this.profile.car = { ...DEFAULT_CAR, ...this.profile.car };
     this.records = load('records', {});
-    this.renderer = new Renderer(this.canvas, this.settings.quality);
+    // 'auto' starts on high and steps down after a short benchmark in the menu;
+    // the result is never saved, so every launch re-measures
+    this.autoQ = { t: 0, frames: [], done: this.settings.quality !== 'auto' };
+    this.renderer = new Renderer(this.canvas, this.effectiveQuality());
     this.input = new Input();
     this.audio = new AudioEngine(this.settings);
     this.ui = new UI(this);
@@ -59,6 +62,40 @@ export class App {
   }
 
   saveSettings() { save('settings', this.settings); }
+
+  effectiveQuality() {
+    return this.settings.quality === 'auto' ? this.autoLevel || 'high' : this.settings.quality;
+  }
+
+  setQuality(q) {
+    this.settings.quality = q;
+    this.saveSettings();
+    if (q === 'auto') { this.autoLevel = null; this.autoQ = { t: 0, frames: [], done: false }; }
+    this.renderer.setQuality(this.effectiveQuality());
+  }
+
+  // measure the menu backdrop for a few seconds and step quality down if slow
+  _autoQuality(dt) {
+    const a = this.autoQ;
+    if (a.done || this.mode !== 'menu' || document.hidden) return;
+    a.t += dt;
+    if (a.t < 1.5) return;
+    a.frames.push(dt);
+    if (a.t < 5) return;
+    const fps = a.frames.length / a.frames.reduce((x, y) => x + y, 0);
+    const cur = this.effectiveQuality();
+    const order = ['low', 'medium', 'high'];
+    let next = cur;
+    if (fps < 34) next = 'low';
+    else if (fps < 50) next = order[Math.max(0, order.indexOf(cur) - 1)];
+    if (next !== cur) {
+      this.autoLevel = next;
+      this.renderer.setQuality(next);
+      this.ui.toast(`Graphics set to ${next[0].toUpperCase() + next.slice(1)} for smoother play`);
+      a.t = 0; a.frames = []; // re-check once at the new level
+      if (next === 'low') a.done = true;
+    } else a.done = true;
+  }
   saveProfile() { save('profile', this.profile); }
   saveRecords() { save('records', this.records); }
 
@@ -274,6 +311,7 @@ export class App {
     if (this.frameTimes.length > 30) this.frameTimes.shift();
     this.fps = this.frameTimes.length / this.frameTimes.reduce((a, b) => a + b, 0);
     this.input.pollPad();
+    this._autoQuality(dt);
     const inp = this.input.state();
     if (this.mode === 'garage' && this.ui.garage) {
       this.ui.garage.update(dt);
@@ -309,8 +347,16 @@ export class App {
     const app = this;
     return {
       app, THREE,
-      // advance the game by n frames of dt without rAF (for headless capture)
-      step(n = 1, dt = 1 / 60) { for (let i = 0; i < n; i++) app.tick(dt); },
+      // advance the game by n frames of dt without rAF (for headless capture);
+      // only the last frame is rendered unless every=true
+      step(n = 1, dt = 1 / 60, every = false) {
+        const r = app.renderer.render;
+        for (let i = 0; i < n; i++) {
+          if (!every && i < n - 1) app.renderer.render = () => {};
+          app.tick(dt);
+          app.renderer.render = r;
+        }
+      },
       async shot(name) {
         app.renderer.render();
         const url = app.canvas.toDataURL('image/png');

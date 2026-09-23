@@ -24,7 +24,7 @@ export class SettingsScreen {
     const s = this.app.settings;
     s[k] = v;
     this.app.saveSettings();
-    if (k === 'quality') this.app.renderer.setQuality(v);
+    if (k === 'quality') { this.app.setQuality(v); this.render(); return; }
     if (['master', 'music', 'sfx'].includes(k)) this.app.audio.applyVolumes();
     if (k === 'fov' && this.app.session) this.app.session.camera.baseFov = v;
     if (k === 'camera' && this.app.session && this.app.mode === 'race') this.app.session.camera.setMode(v);
@@ -57,7 +57,7 @@ export class SettingsScreen {
     clear(this.body);
     this.body.append(
       sec('Graphics',
-        row('Quality', this.seg('quality', [['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['ultra', 'Ultra']]), 'Lower this on Chromebooks and older laptops'),
+        row('Quality', this.seg('quality', [['auto', 'Auto'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['ultra', 'Ultra']]), this.app.settings.quality === 'auto' ? `Auto picked ${this.app.effectiveQuality()} for this device` : 'Lower this on Chromebooks and older laptops'),
         row('Show FPS', this.toggle('showFps'))),
       sec('Camera',
         row('View', this.seg('camera', [['chase', 'Chase'], ['far', 'Far'], ['hood', 'Hood']])),
@@ -79,7 +79,7 @@ export class SettingsScreen {
         h('p.note', 'In the air, accelerate/brake pitch the car and steering spins it - use it to line up landings.')),
       sec('Data',
         row('Reset records and ghosts', button('Reset', () => this.reset(), 'danger small')),
-        row('Restore default settings', button('Defaults', () => { Object.assign(this.app.settings, DEFAULT_SETTINGS, { name: this.app.settings.name }); this.app.saveSettings(); this.app.renderer.setQuality(this.app.settings.quality); this.app.audio.applyVolumes(); this.render(); }, 'small'))),
+        row('Restore default settings', button('Defaults', () => { Object.assign(this.app.settings, DEFAULT_SETTINGS, { name: this.app.settings.name }); this.app.setQuality(this.app.settings.quality); this.app.audio.applyVolumes(); this.render(); }, 'small'))),
     );
   }
 

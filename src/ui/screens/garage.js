@@ -17,7 +17,7 @@ class Showroom {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(34, 16 / 9, 0.1, 200);
     this.scene.background = new THREE.Color(0x11151f);
-    this.scene.fog = new THREE.Fog(0x11151f, 16, 40);
+    this.scene.fog = new THREE.Fog(0x11151f, 22, 60);
     const hemi = new THREE.HemisphereLight(0xdbe6ff, 0x2a2f3a, 1.1);
     const key = new THREE.DirectionalLight(0xffffff, 2.6);
     key.position.set(4, 8, 5);
@@ -42,20 +42,34 @@ class Showroom {
     ring.position.y = 0.19;
     this.table.add(disc, ring);
     this.scene.add(this.table);
-    // backdrop panels
-    const panelMat = new THREE.MeshLambertMaterial({ color: 0x161b26, flatShading: true });
-    for (let i = 0; i < 9; i++) {
-      const a = (i / 9) * Math.PI * 1.2 - Math.PI * 0.1 + Math.PI;
-      const p = new THREE.Mesh(new THREE.BoxGeometry(5.2, 9, 0.3), panelMat);
-      p.position.set(Math.sin(a) * 14, 4, Math.cos(a) * 14);
-      p.lookAt(0, 4, 0);
-      this.scene.add(p);
-      const strip = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.08, 0.05), new THREE.MeshBasicMaterial({ color: new THREE.Color(i % 2 ? 0x2f86eb : 0x39c6f0).multiplyScalar(1.6) }));
-      strip.position.copy(p.position).add(new THREE.Vector3(0, -1.5 + (i % 3), 0));
-      strip.lookAt(0, strip.position.y, 0);
-      strip.translateZ(0.2);
+    // curved showroom wall: gradient panels with vertical light strips
+    const wallGeo = new THREE.CylinderGeometry(17, 17, 14, 36, 1, true, 0, Math.PI * 2);
+    const wc = [];
+    const wp = wallGeo.attributes.position;
+    const top = new THREE.Color(0x1d2740), bot = new THREE.Color(0x0c1018);
+    for (let i = 0; i < wp.count; i++) { const k = (wp.getY(i) + 7) / 14; const c = bot.clone().lerp(top, k); wc.push(c.r, c.g, c.b); }
+    wallGeo.setAttribute('color', new THREE.Float32BufferAttribute(wc, 3));
+    const wall = new THREE.Mesh(wallGeo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false }));
+    wall.position.y = 7;
+    this.scene.add(wall);
+    const stripMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0x39c6f0).multiplyScalar(1.4), fog: false });
+    const stripMat2 = new THREE.MeshBasicMaterial({ color: new THREE.Color(0x2f86eb).multiplyScalar(1.2), fog: false });
+    for (let i = 0; i < 18; i++) {
+      const a = (i / 18) * Math.PI * 2;
+      const strip = new THREE.Mesh(new THREE.BoxGeometry(0.12, 9, 0.12), i % 3 ? stripMat2 : stripMat);
+      strip.position.set(Math.sin(a) * 16.8, 5.2, Math.cos(a) * 16.8);
       this.scene.add(strip);
     }
+    // glowing floor rings around the turntable
+    for (const [r, c] of [[5.2, 0x2f86eb], [7.4, 0x1f4f8f], [10.5, 0x16345c]]) {
+      const ringM = new THREE.Mesh(new THREE.RingGeometry(r, r + 0.06, 64), new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(1.3) }));
+      ringM.rotation.x = -Math.PI / 2;
+      ringM.position.y = 0.01;
+      this.scene.add(ringM);
+    }
+    const fill = new THREE.PointLight(0x7fb0ff, 40, 30, 1.6);
+    fill.position.set(-4, 5, 6);
+    this.scene.add(fill);
     // environment map for paint reflections
     const pmrem = new THREE.PMREMGenerator(renderer.renderer);
     const env = new THREE.Scene();

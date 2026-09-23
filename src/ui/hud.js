@@ -2,6 +2,9 @@
 import { h } from './dom.js';
 import { drawTrack, mapTransform } from './trackmap.js';
 import { formatTime, formatDelta, clamp } from '../util/math.js';
+import { Vector3 } from 'three';
+
+const _p = new Vector3();
 
 export class HUD {
   constructor(app) {
@@ -34,7 +37,9 @@ export class HUD {
     this.standings = h('div.hud-standings');
     this.hint = h('div.hud-hint');
     this.fps = h('div.hud-fps');
-    this.el.append(this.top, this.left, this.map, this.speedo, this.center, this.standings, this.hint, this.fps);
+    this.tagLayer = h('div.hud-tags');
+    this.tags = new Map();
+    this.el.append(this.tagLayer, this.top, this.left, this.map, this.speedo, this.center, this.standings, this.hint, this.fps);
     this.cache = {};
     this.splitUntil = 0;
     this.countUntil = 0;
@@ -43,7 +48,9 @@ export class HUD {
 
   attach(session) {
     this.session = session;
-    const T = drawTrack(this.mapBg.getContext('2d'), session.track, 220, 220, { pad: 14 });
+    const bg = this.mapBg.getContext('2d');
+    bg.clearRect(0, 0, 220, 220);
+    const T = drawTrack(bg, session.track, 220, 220, { pad: 14 });
     this.mapT = T;
     const mode = session.mode;
     const kb = this.app.input.lastDevice === 'gamepad'
@@ -60,6 +67,8 @@ export class HUD {
     this.splitEl.className = 'hud-split';
     this.count.className = 'hud-count';
     this.cache = {};
+    this.tagLayer.replaceChildren();
+    this.tags.clear();
   }
 
   set(key, el, value, prop = 'textContent') {
@@ -101,7 +110,7 @@ export class HUD {
     this.set('timer', this.timer, d.state === 'countdown' ? '0:00.000' : formatTime((d.finished ? d.finishTime : d.time) * 1000));
     this.timer.classList.toggle('done', !!d.finished);
     if (d.laps) this.set('lap', this.lapEl, `LAP ${d.lap}/${d.laps}`); else this.set('lap', this.lapEl, '');
-    this.set('cp', this.cpEl, `CP ${Math.min(d.cp, d.cpTotal)}/${d.cpTotal}`);
+    this.set('cp', this.cpEl, `CP ${d.cpLap}/${d.cpPerLap}`);
     if (d.racers > 1) this.set('pos', this.posEl, `${d.place}<small>/${d.racers}</small>`, 'innerHTML'); else this.set('pos', this.posEl, '');
     if (this.t > this.splitUntil && this.splitEl.classList.contains('show')) this.splitEl.classList.remove('show');
     if (this.t > this.countUntil && this.count.classList.contains('show')) this.count.className = 'hud-count';
@@ -113,6 +122,7 @@ export class HUD {
     this.set('msg', this.msg, m);
     this.set('msgc', this.msg, 'hud-msg ' + cls + (m ? ' show' : ''), 'className');
     this.drawMap(s);
+    this.drawTags(s);
     if (s.standings && this.standings.style.display !== 'none' && (this._stT = (this._stT || 0) + dt) > 0.25) {
       this._stT = 0;
       this.drawStandings(s);
@@ -139,6 +149,35 @@ export class HUD {
       ctx.strokeStyle = me ? '#ffffff' : 'rgba(0,0,0,0.7)';
       ctx.stroke();
     }
+  }
+
+  // floating name tags over the other cars
+  drawTags(s) {
+    const cam = s.renderer.camera;
+    const W = this.el.clientWidth || innerWidth, H = this.el.clientHeight || innerHeight;
+    const seen = new Set();
+    for (const e of s.entries) {
+      if (e === s.focus || !e.model.group.visible) continue;
+      const pos = e.model.group.position;
+      const d = pos.distanceTo(cam.position);
+      if (d > 160) continue;
+      _p.copy(pos);
+      _p.y += 1.9;
+      _p.project(cam);
+      if (_p.z > 1 || _p.x < -1.1 || _p.x > 1.1 || _p.y < -1.1 || _p.y > 1.1) continue;
+      let t = this.tags.get(e.id);
+      if (!t) {
+        t = h('div.tag-name' + (e.kind === 'ghost' ? '.ghost' : ''), h('i', { style: { background: e.custom?.paint || '#fff' } }), h('span', e.name || ''));
+        this.tagLayer.append(t);
+        this.tags.set(e.id, t);
+      }
+      seen.add(e.id);
+      const x = (_p.x * 0.5 + 0.5) * W, y = (-_p.y * 0.5 + 0.5) * H;
+      t.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%) scale(${clamp(1.25 - d / 140, 0.6, 1.1).toFixed(2)})`;
+      t.style.opacity = clamp(1.4 - d / 120, 0, 1).toFixed(2);
+      t.style.display = '';
+    }
+    for (const [id, t] of this.tags) if (!seen.has(id)) t.style.display = 'none';
   }
 
   drawStandings(s) {

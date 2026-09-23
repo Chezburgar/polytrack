@@ -60,5 +60,25 @@ export function makeTerrain(track, theme) {
     }
   };
 
-  return { heightAt, grid, forEachTri, index, wet };
+  // height of the rendered (triangulated) surface, so props sit exactly on it
+  const meshHeightAt = (x, z) => {
+    if (!grid) return heightAt(x, z);
+    const { x0, z0, nx, nz, cell, X, Z, H } = grid;
+    const ci = Math.floor((x - x0) / cell), cj = Math.floor((z - z0) / cell);
+    for (let j = cj - 1; j <= cj + 1; j++) for (let i = ci - 1; i <= ci + 1; i++) {
+      if (i < 0 || j < 0 || i >= nx || j >= nz) continue;
+      const a = j * (nx + 1) + i, bq = a + 1, c = a + nx + 1, d = c + 1;
+      const tris = (i + j) % 2 ? [[a, c, bq], [bq, c, d]] : [[a, c, d], [a, d, bq]];
+      for (const [p, q, r] of tris) {
+        const v0x = X[q] - X[p], v0z = Z[q] - Z[p], v1x = X[r] - X[p], v1z = Z[r] - Z[p], v2x = x - X[p], v2z = z - Z[p];
+        const den = v0x * v1z - v1x * v0z;
+        if (Math.abs(den) < 1e-9) continue;
+        const u = (v2x * v1z - v1x * v2z) / den, v = (v0x * v2z - v2x * v0z) / den;
+        if (u >= -1e-6 && v >= -1e-6 && u + v <= 1 + 1e-6) return H[p] + u * (H[q] - H[p]) + v * (H[r] - H[p]);
+      }
+    }
+    return heightAt(x, z);
+  };
+
+  return { heightAt, meshHeightAt, grid, forEachTri, index, wet };
 }

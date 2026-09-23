@@ -1,7 +1,7 @@
 // Pause menu (in single player the race is frozen; online it keeps running).
 import { h } from '../dom.js';
 import { button } from '../ui.js';
-import { logo } from './title.js';
+import { logo, toggleFullscreen } from './title.js';
 
 export class PauseOverlay {
   constructor(ui, data = {}) {
@@ -19,6 +19,7 @@ export class PauseOverlay {
         button('Respawn at checkpoint', () => { ui.closeOverlay(); if (!online) app.resume(); s?.respawn(s.player); }, 'wide'),
         online && app.net?.isHost ? button('End race for everyone', () => { app.net.endRace(); ui.closeOverlay(); }, 'wide') : null,
         button('Settings', () => { app.audio.play('select'); ui.overlay('settings'); }, 'wide'),
+        button('Full screen', () => toggleFullscreen(), 'wide'),
         button(online ? 'Leave room' : 'Quit to menu', () => app.quitRace(), 'wide danger'),
       ));
   }

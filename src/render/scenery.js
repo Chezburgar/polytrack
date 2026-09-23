@@ -32,7 +32,7 @@ export function buildScenery(track, theme, { decor = 1, terrain = null } = {}) {
   const seed = hashString(track.def.id + ':scenery');
   const rnd = mulberry32(seed);
   terrain = terrain || makeTerrain(track, theme);
-  const { heightAt, index } = terrain;
+  const { meshHeightAt: heightAt, index } = terrain;
   const b = track.bounds;
   const cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
   const ground = theme.ground;
@@ -88,10 +88,18 @@ export function buildScenery(track, theme, { decor = 1, terrain = null } = {}) {
     const wg = new THREE.PlaneGeometry(size, size, 80, 80).toNonIndexed();
     wg.rotateX(-Math.PI / 2);
     const base = wg.attributes.position.array.slice();
-    const wm = new THREE.MeshLambertMaterial({
-      color: lava ? 0xff6a1a : theme.waterColor ?? 0x2aa7c9, flatShading: true, transparent: !lava, opacity: lava ? 1 : 0.82,
-      emissive: lava ? 0xff3a00 : theme.waterGlow ?? 0x0a3a4a, emissiveIntensity: lava ? 1.25 : 0.3,
-    });
+    // per-facet colour variation: cooling crust on lava, glints on water
+    const wc = [];
+    const lavaCols = [0xff5a14, 0xff7a1e, 0xe8400c, 0x5a1a0e, 0xffa030].map((c) => new THREE.Color(c));
+    const waterBase = new THREE.Color(theme.waterColor ?? 0x2aa7c9);
+    for (let i = 0; i < base.length / 9; i++) {
+      const c = lava ? lavaCols[rnd() < 0.18 ? 3 : Math.floor(rnd() * 3) + (rnd() < 0.1 ? 2 : 0)] : waterBase.clone().multiplyScalar(0.9 + rnd() * 0.2);
+      for (let v = 0; v < 3; v++) wc.push(c.r, c.g, c.b);
+    }
+    wg.setAttribute('color', new THREE.Float32BufferAttribute(wc, 3));
+    const wm = lava
+      ? new THREE.MeshBasicMaterial({ vertexColors: true })
+      : new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, transparent: true, opacity: 0.84, emissive: theme.waterGlow ?? 0x0a3a4a, emissiveIntensity: 0.3 });
     const water = new THREE.Mesh(wg, wm);
     water.position.set(cx, -2.2, cz);
     water.receiveShadow = !lava;
@@ -222,7 +230,7 @@ export function buildScenery(track, theme, { decor = 1, terrain = null } = {}) {
   // ---- planets (space) ------------------------------------------------------------------
   if (theme.planets) {
     for (const [i, p] of theme.planets.entries()) {
-      const geo = new THREE.IcosahedronGeometry(p.r, 2).toNonIndexed();
+      const geo = new THREE.IcosahedronGeometry(p.r, 2); // already non-indexed
       const colors = [];
       const pc = geo.attributes.position.array;
       const c1 = new THREE.Color(p.c1), c2 = new THREE.Color(p.c2);
@@ -281,7 +289,15 @@ export function buildScenery(track, theme, { decor = 1, terrain = null } = {}) {
 // distant skyline ring.
 function buildCity(group, track, theme, index, heightAt, rnd, decor, propMat, glowMat) {
   const body = new GeoBuilder();
-  const win = new GeoBuilder();
+  const winPos = [], winCol = [];
+  const quad = (cx, cy, cz, ax, az, w, h, c) => {
+    // vertical pane centred at (cx,cy,cz), spanning (ax,az) horizontally; faces +normal (az,-ax)
+    const hw = w / 2, hh = h / 2;
+    const x0 = cx - ax * hw, z0 = cz - az * hw, x1 = cx + ax * hw, z1 = cz + az * hw;
+    winPos.push(x0, cy - hh, z0, x1, cy - hh, z1, x1, cy + hh, z1, x0, cy - hh, z0, x1, cy + hh, z1, x0, cy + hh, z0);
+    for (let k = 0; k < 6; k++) winCol.push(c.r, c.g, c.b);
+  };
+  const wtmp = new THREE.Color();
   const b = track.bounds;
   const winCols = (theme.windowColors || [0xffd9a0, 0x9fd8ff, 0xff9ff0]).map((c) => new THREE.Color(c));
   const bodyCols = theme.buildingColors || [0x1d2030, 0x22263a, 0x1a1c2a, 0x262a40];
@@ -312,8 +328,10 @@ function buildCity(group, track, theme, index, heightAt, rnd, decor, propMat, gl
           const t = (k + 0.5) / cols - 0.5;
           const lx = fx + (nz !== 0 ? t * len : 0), lz = fz + (nx !== 0 ? t * len : 0);
           const wx = x + lx * cy + lz * sy, wz = z - lx * sy + lz * cy;
-          const k2 = 0.55 + rnd() * 0.6;
-          win.add(new THREE.PlaneGeometry(1.3, 1.6), new THREE.Color(wc).multiplyScalar(k2).getHex(), { pos: [wx, y0 + r * 3.4, wz], rot: [0, Math.atan2(nx * cy + nz * sy, -nx * sy + nz * cy), 0] });
+          const k2 = (0.55 + rnd() * 0.6) * 1.35;
+          // world normal of this face, and the in-plane horizontal axis
+          const wnx = nx * cy + nz * sy, wnz = -nx * sy + nz * cy;
+          quad(wx, y0 + r * 3.4, wz, -wnz, wnx, 1.1, 1.4, wtmp.copy(wc).multiplyScalar(k2));
         }
       }
     }
@@ -325,10 +343,11 @@ function buildCity(group, track, theme, index, heightAt, rnd, decor, propMat, gl
     bm.receiveShadow = true;
     group.add(bm);
   }
-  if (win.pos.length) {
-    const wg = win.build();
-    const c = wg.attributes.color.array;
-    for (let i = 0; i < c.length; i++) c[i] *= 2.0;
-    group.add(new THREE.Mesh(wg, glowMat));
+  if (winPos.length) {
+    const wg = new THREE.BufferGeometry();
+    wg.setAttribute('position', new THREE.Float32BufferAttribute(winPos, 3));
+    wg.setAttribute('color', new THREE.Float32BufferAttribute(winCol, 3));
+    wg.computeBoundingSphere();
+    group.add(new THREE.Mesh(wg, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide })));
   }
 }

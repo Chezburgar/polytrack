@@ -6,10 +6,10 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 export const QUALITY = {
-  low: { pixelRatio: 0.75, shadows: false, shadowSize: 0, bloom: false, msaa: false, decor: 0.45, far: 700 },
-  medium: { pixelRatio: 1, shadows: true, shadowSize: 1024, bloom: false, msaa: true, decor: 0.75, far: 900 },
-  high: { pixelRatio: 1.25, shadows: true, shadowSize: 2048, bloom: true, msaa: true, decor: 1, far: 1100 },
-  ultra: { pixelRatio: 2, shadows: true, shadowSize: 4096, bloom: true, msaa: true, decor: 1.25, far: 1400 },
+  low: { pixelRatio: 0.75, shadows: false, shadowSize: 0, bloom: false, samples: 0, decor: 0.45, far: 700 },
+  medium: { pixelRatio: 1, shadows: true, shadowSize: 1024, bloom: false, samples: 0, decor: 0.75, far: 900 },
+  high: { pixelRatio: 1, shadows: true, shadowSize: 2048, bloom: true, samples: 2, decor: 1, far: 1100 },
+  ultra: { pixelRatio: 2, shadows: true, shadowSize: 4096, bloom: true, samples: 4, decor: 1.25, far: 1400 },
 };
 
 export class Renderer {
@@ -62,7 +62,7 @@ export class Renderer {
     if (this.composer) { this.composer.dispose?.(); this.composer = null; }
     const q = this.quality;
     if (!q.bloom) return;
-    const rt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: q.msaa ? 4 : 0 });
+    const rt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: q.samples || 0 });
     const comp = new EffectComposer(this.renderer, rt);
     comp.addPass(new RenderPass(this.scene, this.camera));
     this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.55, 0.5, 1.05);

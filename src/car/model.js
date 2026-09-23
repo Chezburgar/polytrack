@@ -302,8 +302,12 @@ export function buildCar(custom = DEFAULT_CAR, { envMap = null, shadows = true }
     const a = st.find((s) => s.kind === 'c');
     const aIdx = st.indexOf(a);
     const hs = st[aIdx - 1];
-    const mz = hs.z - 0.12, my = hs.belt + 0.1;
-    both((sx) => { box(extras, paintHex, sx * (hs.w + 0.08), my, mz, 0.14, 0.1, 0.18); box(extras, detail, sx * (hs.w - 0.02), my - 0.03, mz + 0.02, 0.12, 0.03, 0.06); });
+    const mz = hs.z - 0.22, my = hs.belt + 0.07;
+    both((sx) => {
+      box(extras, detail, sx * (hs.w + 0.02), my - 0.04, mz + 0.03, 0.1, 0.035, 0.07); // stalk into the door
+      box(extras, paintHex, sx * (hs.w + 0.1), my, mz, 0.1, 0.09, 0.16, 0, sx * 0.25, 0);
+      box(extras, 0x9fb4c8, sx * (hs.w + 0.1), my, mz - 0.085, 0.08, 0.07, 0.01, 0, sx * 0.25, 0); // glass
+    });
   }
   // exhausts
   for (let i = 0; i < (def.exhaust || 0); i++) {

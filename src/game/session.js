@@ -125,14 +125,23 @@ export class Session {
       const now = this.app.net?.now() ?? performance.now();
       this.countdownLeft = (this.startAt - now) / 1000;
     }
-    this.acc += dt;
+    // Online, the race clock is the shared wall clock (host time), so finish
+    // times stay comparable even if this machine hitches: we simulate as many
+    // steps as it takes to catch up (up to a quarter second per frame).
+    let maxSteps = 12;
+    if (this.startAt != null && this.state !== 'countdown') {
+      const now = this.app.net?.now() ?? performance.now();
+      const target = (now - this.startAt) / 1000;
+      this.acc = Math.max(0, Math.min(0.25, target - this.time));
+      maxSteps = 30;
+    } else this.acc += dt;
     let steps = 0;
-    while (this.acc >= DT && steps < 12) {
+    while (this.acc >= DT && steps < maxSteps) {
       this._fixed(DT, input);
       this.acc -= DT;
       steps++;
     }
-    if (steps >= 12) this.acc = 0;
+    if (steps >= maxSteps) this.acc = 0;
     this._render(this.acc / DT, dt, input);
   }
 
@@ -421,6 +430,8 @@ export class Session {
       laps: this.laps,
       cp: e ? e.race.cpTimes.length : 0,
       cpTotal: e ? e.race.totalGates : 0,
+      cpPerLap: this.track.checkpoints.length + 1,
+      cpLap: e ? (this.laps ? Math.max(0, e.race.next) : e.race.cpTimes.length) : 0,
       place: e?.place || 1,
       racers: this.entries.filter((x) => x.kind !== 'ghost').length,
       wrongWay: car ? this._wrongWay(e) : false,

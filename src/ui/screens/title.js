@@ -33,7 +33,16 @@ export class TitleScreen {
           h('div', h('b', `${golds}`), h('span', 'gold medals')),
         ),
       ),
-      h('div.title-foot', h('span', `v${VERSION}`), h('span', 'WASD / Arrows to drive · Space to drift · R to respawn')),
+      h('div.title-foot', h('span', `v${VERSION}`), h('span', 'WASD / Arrows to drive · Space to drift · R to respawn'),
+        h('button.fs-btn', { type: 'button', title: 'Full screen (F11)', onclick: () => toggleFullscreen() }, '⛶ Full screen')),
     );
   }
+}
+
+export function toggleFullscreen() {
+  const d = document;
+  try {
+    if (d.fullscreenElement) d.exitFullscreen();
+    else d.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+  } catch { /* not allowed here - F11 still works */ }
 }

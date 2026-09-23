@@ -20,6 +20,8 @@ body { touch-action: none; user-select: none; -webkit-user-select: none; }
 #ui { position: fixed; inset: 0; pointer-events: none; }
 .layer { position: absolute; inset: 0; pointer-events: none; }
 .layer > * { pointer-events: auto; }
+.hud-layer { display: none; }
+.hud-layer.on { display: block; }
 .hud-layer > * { pointer-events: none; }
 .overlay-layer.on { background: rgba(5, 8, 14, 0.55); backdrop-filter: blur(3px); pointer-events: auto; }
 button { font-family: inherit; }
@@ -94,7 +96,7 @@ input, select { font-family: inherit; user-select: text; -webkit-user-select: te
 
 /* ---------- logo / title ---------- */
 .logo { display: flex; align-items: center; gap: 14px; }
-.logo-mark { width: 64px; height: 64px; display: block; filter: drop-shadow(0 6px 18px rgba(0,0,0,0.5)); }
+.logo-mark { width: 64px; height: 64px; display: block; flex: none; filter: drop-shadow(0 6px 18px rgba(0,0,0,0.5)); }
 .logo-mark svg { width: 100%; height: 100%; }
 .logo-word { font-size: 56px; font-weight: 900; font-style: italic; letter-spacing: 1px; line-height: 1; text-shadow: 0 4px 24px rgba(0,0,0,0.55); }
 .logo-word b { color: #fff; }
@@ -104,7 +106,7 @@ input, select { font-family: inherit; user-select: text; -webkit-user-select: te
 .logo.small .logo-mark { width: 40px; height: 40px; }
 .logo.small .logo-word { font-size: 30px; }
 .title-screen { justify-content: space-between; background: linear-gradient(90deg, rgba(8,12,22,0.86) 0%, rgba(8,12,22,0.55) 36%, rgba(8,12,22,0) 62%); }
-.title-left { display: flex; flex-direction: column; gap: 18px; max-width: 520px; margin-top: 4vh; }
+.title-left { display: flex; flex-direction: column; gap: 18px; max-width: 680px; margin-top: 4vh; }
 .tagline { color: #c7d3e8; font-size: 17px; margin: -4px 0 12px 6px; text-shadow: 0 2px 10px rgba(0,0,0,0.6); }
 .menu-stack { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
 .menu-stack .btn { min-width: 300px; justify-content: flex-start; }
@@ -113,7 +115,9 @@ input, select { font-family: inherit; user-select: text; -webkit-user-select: te
 .title-stats div { display: flex; flex-direction: column; }
 .title-stats b { font-size: 26px; font-style: italic; }
 .title-stats span { color: var(--muted); font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; }
-.title-foot { display: flex; gap: 22px; color: rgba(255,255,255,0.55); font-size: 12px; letter-spacing: 1px; }
+.title-foot { display: flex; gap: 22px; align-items: center; color: rgba(255,255,255,0.55); font-size: 12px; letter-spacing: 1px; }
+.fs-btn { margin-left: auto; background: rgba(255,255,255,0.08); border: 0; color: #d8e2f2; padding: 7px 12px; font-size: 12px; letter-spacing: 1px; cursor: pointer; }
+.fs-btn:hover { background: rgba(255,255,255,0.18); }
 
 /* ---------- track select ---------- */
 .play-screen { background: rgba(8,12,22,0.8); backdrop-filter: blur(6px); }
@@ -321,6 +325,10 @@ kbd.pad { background: rgba(57,198,240,0.14); color: #9fe6ff; }
 .hud-standings .st-gap { font-size: 11px; }
 .hud-hint { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); font-size: 13px; color: rgba(255,255,255,0.8); font-style: normal; background: rgba(8,12,22,0.55); padding: 6px 14px; letter-spacing: 0.5px; transition: opacity 1s; white-space: nowrap; }
 .hud-hint.fade { opacity: 0; }
+.hud-tags { position: absolute; inset: 0; overflow: hidden; }
+.tag-name { position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 5px; padding: 2px 8px 2px 6px; background: rgba(8,12,22,0.62); font-size: 13px; font-weight: 700; font-style: normal; white-space: nowrap; transform-origin: 50% 100%; will-change: transform; clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%); }
+.tag-name i { width: 10px; height: 10px; display: block; clip-path: polygon(25% 0, 100% 0, 75% 100%, 0 100%); }
+.tag-name.ghost { background: rgba(255,255,255,0.18); color: #e6f4ff; }
 .hud-fps { position: absolute; left: 12px; bottom: 10px; font-size: 12px; color: #9f9; font-style: normal; font-weight: 700; }
 
 /* ---------- toasts ---------- */
@@ -341,7 +349,7 @@ kbd.pad { background: rgba(57,198,240,0.14); color: #9fe6ff; }
 .touch-right .gas { right: 20px; bottom: 26px; width: 110px; height: 150px; }
 .touch-right .brake { right: 142px; bottom: 26px; width: 96px; height: 96px; }
 .touch-right .drift { right: 142px; bottom: 134px; width: 96px; height: 58px; font-size: 13px; }
-.touch-top .tbtn { top: 220px; width: 52px; height: 52px; font-size: 20px; }
+.touch-top .tbtn { top: 150px; width: 52px; height: 52px; font-size: 20px; }
 .touch-top .resp { left: 20px; }
 .touch-top .pause { left: 80px; }
 
@@ -364,7 +372,8 @@ kbd.pad { background: rgba(57,198,240,0.14); color: #9fe6ff; }
   .hud-timer { font-size: 30px; }
   .hud-map { width: 120px; height: 120px; }
   .hud-standings { top: 140px; width: 150px; }
-  .hud-speedo { bottom: 190px; right: 16px; }
+  .hud-speedo { bottom: 196px; right: 16px; }
+  .touch.show ~ * .hud-hint, .hud-hint { display: none; }
   .hud-speed-num { font-size: 48px; min-width: 90px; }
   .hud-rpm { width: 140px; }
   .hud-pos { font-size: 40px; }

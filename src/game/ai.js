@@ -22,7 +22,8 @@ export function computeRacingLine(track, margin = 1.9) {
     if (k === 'LOOP' || k === 'J' || k === 'K' || !S[i].road) {
       // stay central on stunts, and for a good stretch after a landing
       const after = k === 'J' || !S[i].road ? 48 : 14;
-      for (let d = -14; d <= after; d++) {
+      const before = k === 'K' || k === 'LOOP' ? 45 : 14; // line up early for take-off
+      for (let d = -before; d <= after; d++) {
         let j = i + d;
         if (closed) j = (j + n) % n; else if (j < 0 || j >= n) continue;
         locked[j] = 1;

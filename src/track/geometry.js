@@ -235,10 +235,10 @@ export function buildTrackGeometry(track, theme, { chunkLen = 160 } = {}) {
     }
     // chevrons: each "^" is two parallelogram bars meeting at a forward tip
     const s0 = S[i0].s, s1 = S[i1].s;
-    const L = 2.2, bw = 0.8;
-    for (let s = s0 + 0.6; s + L + bw < s1; s += 3.0) {
+    const L = 3.2, bw = 1.1;
+    for (let s = s0 + 0.6; s + L + bw < s1; s += 3.6) {
       const f0 = frameAt(track, s);
-      const w = Math.min(f0.hw - CURB_W - LINE_W - 1.0, 4.2);
+      const w = Math.min(f0.hw - CURB_W - LINE_W - 1.0, 2.6);
       const at = (x, ds) => {
         const f = frameAt(track, s + ds);
         return f.p.clone().addScaledVector(f.l, x).addScaledVector(f.n, 0.05);

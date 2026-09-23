@@ -209,6 +209,7 @@ export class Car {
     const s = this.spec;
     const m = s.mass;
     this.updateBasis();
+    this.onKill = false;
     const fwd = this.fwd, up = this.up, left = this.left;
     const force = _f.set(0, -s.gravity * m, 0);
     const torque = _t.set(0, 0, 0);
@@ -255,6 +256,7 @@ export class Car {
           w.px = _hit.px; w.py = _hit.py; w.pz = _hit.pz;
           w.nx = _hit.nx; w.ny = _hit.ny; w.nz = _hit.nz;
           w.surf = _hit.mat;
+          if (_hit.mat === SURF.kill) this.onKill = true; // a wheel in the water/lava counts
           // velocity of the chassis at the contact point, along the surface normal
           _r.set(_hit.px - this.pos.x, _hit.py - this.pos.y, _hit.pz - this.pos.z);
           _v.crossVectors(this.angVel, _r).add(this.vel);
@@ -428,7 +430,6 @@ export class Car {
     const s = this.spec;
     const m = s.mass;
     this.updateBasis();
-    this.onKill = false;
     for (let pass = 0; pass < 2; pass++) {
       for (const sph of s.bodySpheres) {
         const cx = this.pos.x + this.left.x * sph[0] + this.up.x * sph[1] + this.fwd.x * sph[2];
