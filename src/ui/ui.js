@@ -103,6 +103,18 @@ export class UI {
     if (this.overlayScreen) this.closeOverlay(); else this.overlay('pause', { online: true });
   }
 
+  // full-screen loading card while a track builds
+  loading(def) {
+    if (!this.loadEl) {
+      this.loadEl = h('div.loading', h('div.loading-card', h('div.loading-spin'), h('div.loading-label', 'Loading'), h('div.loading-name')));
+      this.root.append(this.loadEl);
+    }
+    if (def) {
+      this.loadEl.querySelector('.loading-name').textContent = def.name || '';
+      this.loadEl.classList.add('on');
+    } else this.loadEl.classList.remove('on');
+  }
+
   toast(text, kind = '') {
     const t = h('div.toast' + (kind ? '.' + kind : ''), text);
     this.toasts.append(t);

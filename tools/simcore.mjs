@@ -6,7 +6,7 @@ import { Car } from '../src/physics/car.js';
 import { AIDriver } from '../src/game/ai.js';
 import { Progress } from '../src/game/progress.js';
 import { RaceState } from '../src/game/race.js';
-import { respawnReason } from '../src/game/rules.js';
+import { respawnReason, missedGate } from '../src/game/rules.js';
 
 const DT = 1 / 120;
 
@@ -49,7 +49,7 @@ export function simulate(def, { skill = 1, maxTime = 400, trace = false, seed = 
     vmax = Math.max(vmax, car.speed);
     maxAir = Math.max(maxAir, car.airTime);
     if (ai.wantRespawn) { ai.wantRespawn = false; doRespawn('stuck'); continue; }
-    const why = respawnReason(rs, car, prog, track, DT);
+    const why = respawnReason(rs, car, prog, track, DT) || (missedGate(race, prog, track) ? 'missed checkpoint' : null);
     if (why) { doRespawn(why); continue; }
     if (car.nanReset) { problems.push('NaN reset at t=' + t.toFixed(2)); car.nanReset = false; }
     if (trace && t - lastTrace > 0.5) {

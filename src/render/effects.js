@@ -30,7 +30,7 @@ export class Effects {
 
     // smoke puffs
     this.puffMax = 220;
-    const pm = new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true, transparent: true, opacity: 0.62, depthWrite: false });
+    const pm = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x555a60, flatShading: true, transparent: true, opacity: 0.42, depthWrite: false });
     this.puffs = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 0), pm, this.puffMax);
     this.puffs.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.puffs.frustumCulled = false;
@@ -47,6 +47,14 @@ export class Effects {
     this.sparks.count = 0;
     this.sparkData = [];
     this.group.add(this.sparks);
+    // confetti
+    this.confMax = 260;
+    this.conf = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.18, 0.09), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }), this.confMax);
+    this.conf.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.conf.frustumCulled = false;
+    this.conf.count = 0;
+    this.confData = [];
+    this.group.add(this.conf);
     this._m = new THREE.Matrix4();
     this._q = new THREE.Quaternion();
     this._s = new THREE.Vector3();
@@ -93,8 +101,40 @@ export class Effects {
     this.sparkData.push({ p: p.clone(), v: v.clone(), age: 0, life: 0.35 + Math.random() * 0.3 });
   }
 
+  confetti(p, v) {
+    const cols = [0xff3d5a, 0xffd23c, 0x39e6ff, 0x3dff8b, 0xff8a3d, 0xb77cff, 0xffffff];
+    for (let i = 0; i < 220; i++) {
+      const a = Math.random() * Math.PI * 2, r = Math.random();
+      this.confData.push({
+        p: p.clone().addScaledVector(v, 0.35).add(new THREE.Vector3(Math.cos(a) * r * 3, 2 + Math.random() * 2, Math.sin(a) * r * 3)),
+        v: v.clone().multiplyScalar(0.55).add(new THREE.Vector3(Math.cos(a) * (2 + Math.random() * 5), 5 + Math.random() * 9, Math.sin(a) * (2 + Math.random() * 5))),
+        spin: new THREE.Vector3(Math.random() * 12, Math.random() * 12, Math.random() * 12), rot: new THREE.Euler(),
+        age: 0, life: 2.4 + Math.random() * 1.6, color: new THREE.Color(cols[i % cols.length]).multiplyScalar(1.6),
+      });
+    }
+    if (this.confData.length > this.confMax) this.confData.splice(0, this.confData.length - this.confMax);
+  }
+
   update(dt) {
     const m = this._m, q = this._q, s = this._s;
+    // confetti flutters: strong drag, gentle gravity
+    let cn = 0;
+    for (let i = this.confData.length - 1; i >= 0; i--) if ((this.confData[i].age += dt) >= this.confData[i].life) this.confData.splice(i, 1);
+    for (const d of this.confData) {
+      d.v.multiplyScalar(1 - dt * 1.6);
+      d.v.y -= 6 * dt;
+      d.p.addScaledVector(d.v, dt);
+      d.rot.set(d.rot.x + d.spin.x * dt, d.rot.y + d.spin.y * dt, d.rot.z + d.spin.z * dt);
+      q.setFromEuler(d.rot);
+      const k = Math.min(1, (d.life - d.age) * 2);
+      m.compose(d.p, q, s.set(k, k, k));
+      this.conf.setMatrixAt(cn, m);
+      this.conf.setColorAt(cn, d.color);
+      cn++;
+    }
+    this.conf.count = cn;
+    this.conf.instanceMatrix.needsUpdate = true;
+    if (this.conf.instanceColor) this.conf.instanceColor.needsUpdate = true;
     let n = 0;
     for (let i = this.puffData.length - 1; i >= 0; i--) {
       const d = this.puffData[i];
@@ -106,7 +146,7 @@ export class Effects {
       d.v.multiplyScalar(1 - dt * 2.2);
       d.v.y += dt * 0.9;
       const k = d.age / d.life;
-      const sc = d.size * (0.5 + k * 1.9) * (1 - k * k * 0.85);
+      const sc = d.size * (0.35 + k * 1.3) * (1 - k * k * 0.9);
       q.setFromAxisAngle(this._p.set(0.3, 1, 0.2).normalize(), d.spin + d.age);
       m.compose(d.p, q, s.set(sc, sc, sc));
       this.puffs.setMatrixAt(n, m);
@@ -138,6 +178,7 @@ export class Effects {
     pos.needsUpdate = true;
     this.puffData.length = 0;
     this.sparkData.length = 0;
+    this.confData.length = 0;
   }
 
   dispose() {

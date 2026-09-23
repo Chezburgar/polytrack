@@ -42,6 +42,13 @@ for (const def of TRACKS) {
         if (Math.abs(S[i].p.y - S[j].p.y) < 6.5 && S[i].kind !== 'LOOP' && S[j].kind !== 'LOOP') clashes.push(`s=${S[i].s.toFixed(0)}/${S[j].s.toFixed(0)} dy=${(S[i].p.y - S[j].p.y).toFixed(1)}`);
       }
     }
+    // kickers need a straight, settled run-up or cars launch crooked
+    t.pieces.forEach((p, k) => {
+      if (p.type !== 'K') return;
+      let run = 0;
+      for (let j = k - 1; j >= 0 && t.pieces[j].type === 'S'; j--) run += t.pieces[j].len;
+      if (run < 60) console.log(`WARN ${def.id}: kicker at piece ${k} has only ${run.toFixed(0)} m of straight run-up`);
+    });
     if (clashes.length) { bad++; console.log('CLASH', def.id, clashes.length, clashes.slice(0, 4).join('  ')); }
     console.log(`track ${def.id}: ${t.samples.length} samples, ${(t.length / 1000).toFixed(2)} km, ${tris} tris, ${t.checkpoints.length} cps${cl}`);
   } catch (e) { bad++; console.log('TRACK FAIL', def.id, e.message); }

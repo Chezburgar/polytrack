@@ -71,7 +71,7 @@ export class RaceState {
     const cx = a.x + (b.x - a.x) * f - gate.p.x, cy = a.y + (b.y - a.y) * f - gate.p.y, cz = a.z + (b.z - a.z) * f - gate.p.z;
     const lat = cx * gate.l.x + cy * gate.l.y + cz * gate.l.z;
     const up = cx * gate.n.x + cy * gate.n.y + cz * gate.n.z;
-    if (Math.abs(lat) > gate.hw + 3.5 || up < -3 || up > 10) return null;
+    if (Math.abs(lat) > gate.hw + 3.5 || up < -3 || up > 20) return null;
     const when = t - dt + f * dt;
 
     if (kind === 'arm') { this.next = 0; return { kind: 'arm', time: when }; }

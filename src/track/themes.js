@@ -103,7 +103,7 @@ export const THEMES = {
     slab: 0x353848, slabDark: 0x24263a, wall: 0x2c2f3d, wallA: 0xff3df0, wallB: 0x39e6ff,
     pillar: 0x3a3d50, gate: 0xff3df0, banner: 0x39e6ff, boost: 0xff3df0,
     neonEdges: true, neonA: 0xff3df0, neonB: 0x39e6ff,
-    city: true, lamps: true, lampColor: 0xb8e6ff,
+    city: true, lamps: true, lampColor: 0xb8e6ff, night: true,
     windowColors: [0xffd9a0, 0x9fd8ff, 0xff9ff0, 0x9fffd0],
     decor: [], clouds: 0x3a3060, cloudCount: 12,
     mountains: [0x151430, 0x1c1a3a, 0x3a2a6a],
@@ -141,7 +141,7 @@ export const THEMES = {
     road: 0x2c2e3e, line: 0xa0f0ff, curbA: 0x8a5cff, curbB: 0xe8e8ff, shoulder: 0x24263a,
     slab: 0x3a3d52, slabDark: 0x2a2c40, wall: 0x4a4d66, wallA: 0x8a5cff, wallB: 0xe8e8ff,
     pillar: 0x3a3d52, gate: 0x8a5cff, banner: 0x39e6ff, boost: 0x39e6ff,
-    neonEdges: true, neonA: 0x8a5cff, neonB: 0x39e6ff,
+    neonEdges: true, neonA: 0x8a5cff, neonB: 0x39e6ff, night: true,
     propPalette: { rock: 0x6a6480, crystal: 0x9a7cff },
     clouds: null, mountains: null, grandstands: false,
     planets: [

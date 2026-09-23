@@ -8,10 +8,10 @@ export const MEDALS = {
     bronze: 104300
   },
   'rolling-hills': {
-    author: 31070,
-    gold: 33100,
-    silver: 36900,
-    bronze: 42600
+    author: 30740,
+    gold: 32800,
+    silver: 36500,
+    bronze: 42100
   },
   'meadow-loop': {
     author: 76270,
@@ -20,10 +20,10 @@ export const MEDALS = {
     bronze: 104500
   },
   'mesa-run': {
-    author: 35670,
-    gold: 38000,
-    silver: 42400,
-    bronze: 48900
+    author: 38030,
+    gold: 40500,
+    silver: 45200,
+    bronze: 52100
   },
   'canyon-drift': {
     author: 100850,
@@ -32,16 +32,16 @@ export const MEDALS = {
     bronze: 138200
   },
   'dune-jumper': {
-    author: 35350,
-    gold: 37700,
-    silver: 42000,
-    bronze: 48400
+    author: 39770,
+    gold: 42400,
+    silver: 47200,
+    bronze: 54500
   },
   'glacier-pass': {
-    author: 41700,
-    gold: 44400,
-    silver: 49500,
-    bronze: 57100
+    author: 41820,
+    gold: 44600,
+    silver: 49700,
+    bronze: 57300
   },
   summit: {
     author: 65610,
@@ -56,10 +56,10 @@ export const MEDALS = {
     bronze: 108900
   },
   'island-hopper': {
-    author: 38420,
-    gold: 41000,
-    silver: 45600,
-    bronze: 52700
+    author: 40440,
+    gold: 43100,
+    silver: 48000,
+    bronze: 55400
   },
   'maple-mile': {
     author: 71220,
@@ -68,10 +68,10 @@ export const MEDALS = {
     bronze: 97600
   },
   'leaf-storm': {
-    author: 38270,
-    gold: 40800,
-    silver: 45500,
-    bronze: 52500
+    author: 38040,
+    gold: 40600,
+    silver: 45200,
+    bronze: 52100
   },
   'neon-boulevard': {
     author: 97640,
@@ -80,10 +80,10 @@ export const MEDALS = {
     bronze: 133800
   },
   overdrive: {
-    author: 40390,
-    gold: 43100,
-    silver: 48000,
-    bronze: 55400
+    author: 40040,
+    gold: 42700,
+    silver: 47600,
+    bronze: 54900
   },
   'midnight-spiral': {
     author: 65420,
@@ -92,10 +92,10 @@ export const MEDALS = {
     bronze: 89700
   },
   'magma-rush': {
-    author: 37230,
-    gold: 39700,
-    silver: 44200,
-    bronze: 51000
+    author: 36680,
+    gold: 39100,
+    silver: 43600,
+    bronze: 50300
   },
   caldera: {
     author: 83460,
@@ -104,10 +104,10 @@ export const MEDALS = {
     bronze: 114400
   },
   stardust: {
-    author: 44200,
-    gold: 47100,
-    silver: 52500,
-    bronze: 60600
+    author: 44050,
+    gold: 47000,
+    silver: 52300,
+    bronze: 60400
   },
   'orbit-ring': {
     author: 71030,
@@ -116,9 +116,9 @@ export const MEDALS = {
     bronze: 97300
   },
   'grand-finale': {
-    author: 70470,
-    gold: 75100,
-    silver: 83700,
-    bronze: 96600
+    author: 70390,
+    gold: 75000,
+    silver: 83600,
+    bronze: 96500
   }
 };

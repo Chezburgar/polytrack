@@ -15,7 +15,7 @@ import { GhostRecorder, GhostPlayer } from './ghost.js';
 import { setStartLights } from '../render/trackview.js';
 import { SURF } from '../track/builder.js';
 import { clamp } from '../util/math.js';
-import { respawnReason } from './rules.js';
+import { respawnReason, missedGate } from './rules.js';
 
 export const DT = 1 / 120;
 const COUNT_RACE = 3.0;
@@ -72,8 +72,24 @@ export class Session {
     }
     this.recorder = this.player && this.mode !== 'demo' ? new GhostRecorder() : null;
     this.focus = this.player || this.entries[0];
+    if (this.loaded.theme.night) {
+      // one real spotlight on the car you're watching lights the road at night
+      const lamp = new THREE.SpotLight(0xfff0d8, 1800, 90, 0.52, 0.55, 1.6);
+      lamp.position.set(0, 0.25, 2.1);
+      lamp.target.position.set(0, -1.2, 22);
+      this.headlight = lamp;
+      this._attachHeadlight();
+    }
     this.camera.snap(this._camTarget(this.focus));
     setStartLights(this.view.track, 0);
+  }
+
+  _attachHeadlight() {
+    const lamp = this.headlight;
+    if (!lamp || !this.focus) return;
+    lamp.parent?.remove(lamp);
+    lamp.target.parent?.remove(lamp.target);
+    this.focus.model.group.add(lamp, lamp.target);
   }
 
   _addEntry({ kind, id, name, custom, skill = 1, slot = 0 }) {
@@ -188,7 +204,11 @@ export class Session {
           car.input.hold = false;
           if (!e.ai) e.ai = new AIDriver(this.track, this.loaded.line, this.loaded.speeds, { skill: e.kind === 'player' ? 0.72 : e.skill, seed: 3 });
           e.ai.drive(car, e.prog, dt);
-          if (e.race.finished) car.input.throttle *= 0.5;
+          if (e.race.finished) {
+            // sprints: coast to a stop on the run-off; circuits: a steady cool-down lap
+            if (!this.track.closed) { car.input.throttle = 0; car.input.brake = car.forwardSpeed > 2 ? 0.55 : 0; }
+            else car.input.throttle = Math.min(car.input.throttle, car.forwardSpeed < 22 ? 0.6 : 0);
+          }
         }
         car.step(dt);
         e.prog.update(car.pos);
@@ -216,6 +236,18 @@ export class Session {
       }
     }
     if (racing) this._standings();
+    // gentle catch-up on the easier AI levels: bots ease off when far ahead of
+    // the player and push a little when far behind
+    if (racing && this.opts.rubber && this.player && !this.player.race.finished) {
+      const pc = this.player.completion || 0;
+      const L = this.track.length * Math.max(1, this.laps);
+      for (const e of this.entries) {
+        if (e.kind !== 'bot' || !e.ai) continue;
+        const gap = ((e.completion || 0) - pc) * L;
+        const k = gap > 120 ? -Math.min(0.08, (gap - 120) / 2500) : gap < -120 ? Math.min(0.04, (-gap - 120) / 3000) : 0;
+        e.ai.skill = e.skill * (1 + k);
+      }
+    }
   }
 
   // ---- remote cars (online) ------------------------------------------------------
@@ -290,6 +322,10 @@ export class Session {
 
   _autoRespawn(e, dt) {
     let why = respawnReason(e, e.car, e.prog, this.track, dt, { patient: e.kind === 'player' });
+    if (!why && this.state !== 'countdown' && this.clock - (e.lastRespawn || -9) > 1.5 && missedGate(e.race, e.prog, this.track)) {
+      why = 'missed';
+      if (e === this.focus) this.message('MISSED CHECKPOINT', 'warn', 2.2);
+    }
     if (e.ai?.wantRespawn) { e.ai.wantRespawn = false; why = 'stuck'; }
     if (why) this.respawn(e, why);
   }
@@ -302,6 +338,7 @@ export class Session {
     e.prog.reset(r.index ?? this.track.start.index);
     e.prog.update(e.car.pos);
     e.race.respawns++;
+    e.lastRespawn = this.clock;
     e.offTime = 0; e.flipTime = 0; e.stallAir = 0;
     if (e.ai) { e.ai.stuck = 0; e.ai.reverseTime = 0; e.ai.fails = 0; }
     for (let w = 0; w < 4; w++) this.effects.endSkid(e.id + w);

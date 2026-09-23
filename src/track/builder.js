@@ -88,6 +88,8 @@ function hermiteD(h0, m0, h1, m1, u) {
 export function buildTrack(def) {
   const closed = (def.laps ?? 0) > 0;
   const pieces = def.pieces.map((s) => parsePiece(s, def));
+  // sprints get a walled run-off past the finish line so you can stop safely
+  if (!closed) pieces.push({ ...parsePiece('S 90 wall', def), runoff: true });
   const N = pieces.length;
   if (closed) solveClosure(def, pieces);
   const baseWidth = def.width ?? 14;
@@ -132,7 +134,16 @@ export function buildTrack(def) {
   }
   const W = new Array(N + 1);
   W[0] = baseWidth;
-  for (let k = 0; k < N; k++) W[k + 1] = pieces[k].width ?? W[k];
+  for (let k = 0; k < N; k++) {
+    W[k + 1] = pieces[k].width ?? W[k];
+    // landing pads: the road after a jump gap starts wider and funnels back in
+    // over the landing straight, so a slightly crooked flight still lands
+    if (pieces[k].type === 'J') {
+      const normal = W[k];
+      W[k + 1] = normal + 6;
+      if (k + 1 < N && pieces[k + 1].width == null) { W[k + 2] = normal; k++; }
+    }
+  }
   if (closed && Math.abs(W[N] - W[0]) > 1e-6) W[0] = W[N];
 
   // ---- sample every piece ------------------------------------------------
@@ -299,7 +310,7 @@ export function buildTrack(def) {
     checkpoints.push(gateFrom(samples[idx]));
   }
   const start = gateFrom(samples[startIndex]);
-  const finish = closed ? start : gateFrom(samples[samples.length - 1]);
+  const finish = closed ? start : gateFrom(samples[pieceStart[N - 1]]);
 
   // ---- bounds --------------------------------------------------------------
   const bounds = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity, minZ: Infinity, maxZ: -Infinity };

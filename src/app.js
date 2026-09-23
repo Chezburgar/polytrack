@@ -21,6 +21,17 @@ export const DEFAULT_SETTINGS = {
   showFps: false, ghost: true, touch: 'auto', shake: true, name: '',
 };
 
+// wait until the browser has painted (so a loading card is visible before heavy
+// work); falls back to a timer because hidden tabs get no animation frames
+export function afterPaint() {
+  return new Promise((res) => {
+    let done = false;
+    const go = () => { if (!done) { done = true; res(); } };
+    requestAnimationFrame(() => requestAnimationFrame(go));
+    setTimeout(go, 80);
+  });
+}
+
 export class App {
   constructor() {
     this.canvas = document.getElementById('game');
@@ -117,9 +128,11 @@ export class App {
   toMenu(screen = 'title') {
     this.endSession();
     this.mode = 'menu';
-    this.startDemo();
     this.ui.show(screen);
     this.audio.setMusic('menu');
+    // build the backdrop race after the menu has painted
+    const token = (this._menuToken = {});
+    afterPaint().then(() => { if (this._menuToken === token && this.mode === 'menu' && !this.session) this.startDemo(); });
   }
 
   startDemo(trackId) {
@@ -140,8 +153,11 @@ export class App {
     this.audio.stopEngines();
   }
 
-  startRace(opts) {
+  async startRace(opts) {
     this.endSession();
+    this.mode = 'loading';
+    this.ui.loading(opts.def);
+    await afterPaint();
     const def = opts.def;
     const mode = opts.mode || 'timetrial';
     const rec = this.records[def.id];
@@ -151,7 +167,7 @@ export class App {
     if (mode === 'race') {
       const rnd = mulberry32(Date.now() & 0xffff);
       const n = opts.bots ?? 5;
-      const skillBase = { easy: 0.78, medium: 0.88, hard: 0.95, pro: 1.0 }[opts.difficulty || 'medium'];
+      const skillBase = { easy: 0.72, medium: 0.83, hard: 0.92, pro: 1.0 }[opts.difficulty || 'medium'];
       for (let i = 0; i < n; i++) bots.push({ name: BOT_NAMES[(i + Math.floor(rnd() * 8)) % BOT_NAMES.length], custom: randomBotCar(rnd), skill: skillBase - rnd() * 0.05 + (i === 0 ? 0.03 : 0) });
     }
     this.lastRace = { ...opts, def, mode };
@@ -159,8 +175,10 @@ export class App {
       def, mode, laps: opts.laps, bots,
       player: { name: this.playerName(), custom: this.profile.car },
       ghost, pbSplits: rec?.splits || null, slot: mode === 'race' ? bots.length : 0,
+      rubber: mode === 'race' && ['easy', 'medium'].includes(opts.difficulty || 'medium'),
     });
     this.mode = 'race';
+    this.ui.loading(null);
     this.ui.show('hud');
     this.audio.setMusic(null);
     this.audio.startEngines(this.session);
@@ -198,13 +216,18 @@ export class App {
   }
 
   // ---- online -------------------------------------------------------------------
-  startOnlineRace(m) {
+  async startOnlineRace(m) {
     const net = this.net;
     if (!net) return;
     const def = getTrackDef(m.trackId);
     if (!def) return;
     const me = m.grid.find((g) => g.id === net.selfId);
     if (!me) { this.ui.toast('Race started without you - you will join the next one.'); return; }
+    this.endSession();
+    this.mode = 'loading';
+    this.ui.loading(def);
+    await afterPaint();
+    if (this.net !== net) { this.ui.loading(null); return; }
     const bots = net.isHost ? m.grid.filter((g) => g.kind === 'bot').map((g) => ({ id: g.id, name: g.name, custom: g.car, skill: g.skill, slot: g.slot })) : [];
     const remotes = m.grid.filter((g) => g.id !== net.selfId && (g.kind === 'player' || !net.isHost)).map((g) => ({ id: g.id, name: g.name, custom: g.car, slot: g.slot }));
     this.endSession();
@@ -215,6 +238,7 @@ export class App {
     });
     this.session.startAt = m.startAt;
     this.mode = 'race';
+    this.ui.loading(null);
     this.ui.show('hud');
     this.audio.setMusic(null);
     this.audio.startEngines(this.session);
@@ -269,6 +293,7 @@ export class App {
     const s = this.session;
     const def = s.opts.def;
     this.audio.play('finish');
+    if (s.player?.car) s.effects.confetti(s.player.car.pos, s.player.car.vel);
     const ms = Math.round(ev.time * 1000);
     let pb = false;
     if (s.mode === 'timetrial' || s.mode === 'race') {
@@ -315,6 +340,9 @@ export class App {
     const inp = this.input.state();
     if (this.mode === 'garage' && this.ui.garage) {
       this.ui.garage.update(dt);
+    } else if (!this.session) {
+      this.renderer.renderer.setClearColor(0x0b101b, 1);
+      this.renderer.renderer.clear();
     } else if (this.session) {
       this.session.update(dt, inp);
       if (this.mode === 'menu') this._demoDirector(dt);
@@ -335,6 +363,7 @@ export class App {
       d.switchAt = 6 + Math.random() * 5;
       const others = s.entries.filter((e) => e !== s.focus);
       s.focus = others[Math.floor(Math.random() * others.length)] || s.focus;
+      s._attachHeadlight();
       const modes = ['orbit', 'chase', 'far', 'orbit'];
       const m = modes[Math.floor(Math.random() * modes.length)];
       s.camera.setMode(m);

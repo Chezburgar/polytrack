@@ -16,8 +16,8 @@ export const TRACKS = [
     blurb: 'Crests, dips and your first jump.',
     pieces: [
       'S 80', 'S 60 u6', 'S 60 d6', 'L 60 r70 b5', 'S 40 u8', 'R 90 r50 cp', 'S 50 d8', 'S 40',
-      'K 12 a10', 'J 18 d1', 'S 60', 'L 45 r60', 'R 45 r60', 'S 60 u5 cp', 'S 40 d5', 'R 70 r45',
-      'L 110 r40 b8', 'S 60 boost', 'R 40 r80', 'S 80 u3', 'S 40',
+      'K 12 a10', 'J 18 d1', 'S 60', 'R 120 r40 b10', 'S 60 u5 cp', 'S 40 d5', 'L 80 r45', 'R 60 r45',
+      'S 60 boost', 'L 40 r80', 'S 80 u3', 'S 40',
     ],
   },
   {
@@ -32,9 +32,10 @@ export const TRACKS = [
     id: 'mesa-run', name: 'Mesa Run', theme: 'desert', laps: 0, difficulty: 1,
     blurb: 'Leap between sandstone plateaus.',
     pieces: [
-      'S 70', 'S 50 u8', 'R 60 r80', 'S 40', 'K 12 a12', 'J 26 d3', 'S 60', 'L 90 r55 b8 cp',
+      'S 70', 'S 50 u8', 'R 60 r80', 'S 65', 'K 12 a12', 'J 26 d3', 'S 60', 'L 150 r45 b10 cp',
       'S 60 u6', 'S 40', 'K 10 a12', 'J 30 d4', 'S 70', 'R 45 r70', 'L 45 r70', 'S 50 boost',
-      'R 100 r50 b10 cp', 'S 60 d4', 'S 60 dirt', 'L 70 r45 dirt', 'S 50', 'K 12 a14', 'J 34 d4', 'S 80',
+      'R 130 r50 b10 cp', 'S 60 d4', 'S 60 dirt', 'L 70 r45 dirt', 'S 65', 'K 12 a14', 'J 34 d4',
+      'S 80',
     ],
   },
   {
@@ -49,10 +50,10 @@ export const TRACKS = [
     id: 'dune-jumper', name: 'Dune Jumper', theme: 'desert', laps: 0, difficulty: 2,
     blurb: 'Five jumps. Keep it straight in the air.',
     pieces: [
-      'S 60', 'S 40 boost', 'K 12 a12', 'J 28 d2', 'S 60', 'R 60 r60 b8', 'S 30 u6', 'K 10 a12',
-      'J 24 d4 cp', 'S 50', 'L 90 r45 b10', 'S 40 dirt', 'S 40 boost', 'K 12 a13', 'J 32 d3', 'S 60',
-      'R 45 r70', 'L 45 r70 cp', 'S 50 u10', 'K 10 a10', 'J 26 d6', 'S 70', 'R 80 r50 b10', 'S 40 boost',
-      'K 12 a12', 'J 30', 'S 60',
+      'S 60', 'S 40 boost', 'K 12 a12', 'J 28 d2', 'S 60', 'R 100 r50 b10 cp', 'S 40 u3', 'S 35',
+      'K 10 a12', 'J 22 d4', 'S 85 cp', 'L 140 r50 b12', 'S 40 dirt', 'S 40 boost', 'K 12 a13',
+      'J 32 d3', 'S 70', 'R 45 r70', 'L 45 r70 cp', 'S 80 u7', 'S 50', 'K 10 a10', 'J 26 d6', 'S 95',
+      'R 110 r60 b10', 'S 65 boost', 'K 12 a12', 'J 30', 'S 60',
     ],
   },
   {
@@ -61,7 +62,7 @@ export const TRACKS = [
     pieces: [
       'S 70', 'L 45 r80', 'S 60 u8', 'R 90 r45 b8', 'S 50 u6 tunnel', 'S 40 tunnel cp', 'L 90 r40 ice',
       'S 40 ice', 'R 60 r50', 'S 60 d6', 'L 120 r35 b10 cp', 'S 50 u4', 'R 45 r60', 'S 40 boost',
-      'L 45 r60', 'S 60 d6', 'R 90 r40 ice', 'S 50', 'K 12 a10', 'J 22 d2', 'S 60', 'L 60 r60', 'S 50',
+      'L 45 r60', 'S 60 d6', 'R 90 r40 ice', 'S 65', 'K 12 a10', 'J 22 d2', 'S 60', 'L 60 r60', 'S 50',
     ],
   },
   {
@@ -84,10 +85,10 @@ export const TRACKS = [
     id: 'island-hopper', name: 'Island Hopper', theme: 'coast', laps: 0, difficulty: 2,
     blurb: 'Fly from island to island - fall short and you swim.',
     pieces: [
-      'S 60', 'S 40 boost', 'K 14 a11', 'J 30 d2', 'S 60', 'L 60 r60 b8', 'S 40', 'K 12 a12', 'J 34',
-      'S 50 cp', 'R 90 r50 b10', 'S 40 u6', 'K 12 a12', 'J 36 d6', 'S 70', 'L 45 r70', 'R 45 r70',
-      'S 50 boost cp', 'K 14 a12', 'J 40 d3', 'S 60', 'R 70 r50', 'S 40', 'L 70 r50', 'S 40 boost',
-      'K 14 a13', 'J 44 d3', 'S 80',
+      'S 60', 'S 40 boost', 'K 14 a11', 'J 30 d2', 'S 60', 'L 90 r60 b8', 'S 65', 'K 12 a12', 'J 34',
+      'S 60 cp', 'L 90 r55 b10', 'S 40 u6', 'S 20', 'K 12 a12', 'J 36 d6', 'S 70', 'R 60 r70',
+      'L 60 r70', 'S 65 boost cp', 'K 14 a12', 'J 40 d3', 'S 70', 'L 80 r50', 'S 40', 'R 40 r60',
+      'S 65 boost', 'K 14 a13', 'J 44 d3', 'S 80',
     ],
   },
   {
@@ -119,9 +120,9 @@ export const TRACKS = [
     id: 'overdrive', name: 'Overdrive', theme: 'neon', laps: 0, difficulty: 2,
     blurb: 'Three loops, two jumps, no brakes.',
     pieces: [
-      'S 60', 'S 50 boost', 'LOOP r12', 'S 60', 'R 90 r40 b10', 'S 40 u8', 'K 12 a12', 'J 30 d8 cp',
-      'S 60 boost', 'L 90 r35', 'S 40', 'LOOP r13 o-18', 'S 60 cp', 'R 60 r50', 'L 60 r50', 'S 50 boost',
-      'K 12 a12', 'J 34', 'S 60', 'R 120 r40 b12', 'S 50 boost', 'LOOP r12', 'S 80',
+      'S 60', 'S 50 boost', 'LOOP r12', 'S 60', 'R 90 r40 b10', 'S 65 u8', 'K 12 a12', 'J 30 d8',
+      'S 60 boost cp', 'L 90 r35', 'S 40', 'LOOP r13 o-18', 'S 60 cp', 'R 60 r50', 'L 60 r50',
+      'S 65 boost', 'K 12 a12', 'J 34', 'S 60', 'R 120 r40 b12', 'S 50 boost', 'LOOP r12', 'S 80',
     ],
   },
   {
@@ -136,10 +137,10 @@ export const TRACKS = [
     id: 'magma-rush', name: 'Magma Rush', theme: 'volcano', laps: 0, difficulty: 2,
     blurb: 'Narrow bridges over the lava sea.',
     pieces: [
-      'S 60', 'S 40 w12', 'R 60 r50', 'S 50', 'K 12 a12', 'J 28 d2', 'S 50 cp', 'L 90 r40 b8 wall',
-      'S 40 w11 nowall', 'R 45 r60', 'L 45 r60', 'S 40 boost', 'K 12 a12', 'J 32 d3', 'S 60 w14',
-      'R 120 r40 b10 cp', 'S 50 u6', 'L 60 r50', 'S 30', 'K 10 a12', 'J 30 d6', 'S 60', 'R 70 r45',
-      'S 40 w10 nowall', 'L 70 r45', 'S 60 boost', 'S 40',
+      'S 60', 'S 40 w12', 'R 60 r50', 'S 65', 'K 12 a12', 'J 28 d2', 'S 60 cp', 'L 120 r40 b10 wall',
+      'S 40 w11 nowall', 'R 45 r60', 'L 45 r60', 'S 65 boost', 'K 12 a12', 'J 32 d3', 'S 70 w14',
+      'R 150 r40 b12 cp', 'S 50 u6', 'S 20', 'K 10 a12', 'J 30 d6', 'S 70', 'L 70 r45',
+      'S 40 w10 nowall', 'R 70 r45', 'S 60 boost', 'S 40',
     ],
   },
   {
@@ -155,8 +156,8 @@ export const TRACKS = [
     blurb: 'No barriers. Nothing below. Big air.',
     pieces: [
       'S 70', 'S 40 boost', 'K 14 a12', 'J 40 d4', 'S 70', 'L 60 r60 b12 wall', 'S 40', 'LOOP r13',
-      'S 60 cp', 'R 90 r50 b15 wall', 'S 50 u10', 'S 40', 'K 12 a12', 'J 42 d10', 'S 90', 'L 45 r80',
-      'R 45 r80 cp', 'S 50 boost', 'K 14 a11', 'J 46 d6', 'S 80', 'R 120 r45 b15 wall', 'S 40 boost',
+      'S 60 cp', 'R 90 r50 b15 wall', 'S 80 u8', 'S 50', 'K 12 a12', 'J 42 d8', 'S 90', 'L 45 r80',
+      'R 45 r80 cp', 'S 65 boost', 'K 14 a11', 'J 46 d6', 'S 80', 'R 120 r45 b15 wall', 'S 40 boost',
       'LOOP r14 o-20', 'S 60', 'K 12 a10', 'J 36', 'S 80',
     ],
   },
@@ -172,11 +173,11 @@ export const TRACKS = [
     id: 'grand-finale', name: 'Grand Finale', theme: 'dusk', laps: 0, difficulty: 3,
     blurb: 'Everything PolyTrack has, in one run at sunset.',
     pieces: [
-      'S 70', 'S 40 boost', 'R 60 r60 b10', 'S 50 u8', 'K 12 a12', 'J 30 d4', 'S 60 cp', 'L 90 r40 b10',
+      'S 70', 'S 40 boost', 'R 60 r60 b10', 'S 65 u8', 'K 12 a12', 'J 30 d4', 'S 60 cp', 'L 90 r40 b10',
       'S 40 tunnel', 'S 40 tunnel', 'R 90 r40 tunnel', 'S 50 boost', 'LOOP r12', 'S 60 cp', 'L 45 r60',
-      'R 90 r35', 'S 40 ice', 'L 90 r40 ice', 'S 50', 'R 360 r40 u16 b8 cp', 'S 60', 'K 12 a12', 'J 40 d8',
-      'S 70', 'L 60 r50 dirt', 'R 60 r50 dirt', 'S 50 boost cp', 'L 120 r40 b12', 'S 40 d4', 'LOOP r13 o-18',
-      'S 60', 'R 45 r70', 'L 45 r70', 'S 40 boost', 'K 14 a12', 'J 44 d4', 'S 90',
+      'R 90 r35', 'S 40 ice', 'L 90 r40 ice', 'S 50', 'R 360 r40 u16 b8 cp', 'S 60', 'K 12 a12',
+      'J 40 d8', 'S 70', 'L 60 r50 dirt', 'R 60 r50 dirt', 'S 50 boost cp', 'L 120 r40 b12', 'S 40 d4',
+      'LOOP r13 o-18', 'S 60', 'R 45 r70', 'L 45 r70', 'S 65 boost', 'K 14 a12', 'J 44 d4', 'S 90',
     ],
   },
 ];
