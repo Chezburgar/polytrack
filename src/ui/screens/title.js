@@ -8,7 +8,7 @@ import { medalFor } from '../../app.js';
 export function logo(size = '') {
   return h('div.logo' + (size ? '.' + size : ''),
     h('span.logo-mark', { html: '<svg viewBox="0 0 64 64"><polygon points="32,3 60,19 60,45 32,61 4,45 4,19" fill="#12213a"/><polygon points="32,3 60,19 32,32" fill="#2f86eb"/><polygon points="60,19 60,45 32,32" fill="#1f5fb8"/><polygon points="60,45 32,61 32,32" fill="#39c6f0"/><polygon points="32,61 4,45 32,32" fill="#ffd23c"/><polygon points="4,45 4,19 32,32" fill="#f39c34"/><polygon points="4,19 32,3 32,32" fill="#e8433a"/><polygon points="32,18 44,25 44,39 32,46 20,39 20,25" fill="#0d1321"/><polygon points="28,25 40,32 28,39" fill="#fff"/></svg>' }),
-    h('span.logo-word', h('b', 'POLY'), h('i', 'TRACK')));
+    h('span.logo-word', h('b', 'POLY'), h('i', 'TRACK'), h('em', 'PRO')));
 }
 
 export class TitleScreen {

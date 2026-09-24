@@ -14,13 +14,13 @@ import { load, save } from './util/storage.js';
 import { mulberry32 } from './util/math.js';
 import { randomBotCar, BOT_NAMES } from './car/presets.js';
 import { sanitize, buildDef } from './track/custom.js';
-import { Intro } from './game/intro.js';
+import { RaceIntro } from './game/intro.js';
 
 export const VERSION = '1.0.0';
 
 export const DEFAULT_SETTINGS = {
   quality: 'auto', camera: 'chase', fov: 70, units: 'kmh', master: 0.8, music: 0.5, sfx: 0.8,
-  showFps: false, ghost: true, touch: 'auto', shake: true, name: '', intro: true,
+  showFps: false, ghost: true, touch: 'auto', shake: true, name: '', raceIntro: true,
 };
 
 // wait until the browser has painted (so a loading card is visible before heavy
@@ -64,7 +64,7 @@ export class App {
     this.input.on('chat', () => { if (this.mode === 'race' && this.session?.mode === 'online' && this.net) setTimeout(() => this.ui.chat.open(), 0); });
     this.input.on('restart', () => { if (this.mode === 'race' && this.session?.mode === 'timetrial' && !this.session.paused) this.restartRace(); });
     this.input.on('camera', () => {
-      if (this.mode !== 'race' || !this.session) return;
+      if (this.mode !== 'race' || !this.session || this.raceIntro?.cinematic) return;
       const m = this.session.camera.cycle();
       this.settings.camera = m;
       this.saveSettings();
@@ -122,8 +122,6 @@ export class App {
         this.ui.show('garage');
       } else if (this.params.get('room')) {
         this.toMenu('online'); // invite link: straight to the join screen
-      } else if (this.settings.intro !== false && dev == null && !this.params.has('nointro')) {
-        this.startIntro();
       } else {
         this.toMenu();
       }
@@ -132,14 +130,6 @@ export class App {
   }
 
   // ---- modes -------------------------------------------------------------------
-  // the 15 second intro (click to start first), then the menu
-  startIntro() {
-    this.endSession();
-    this.mode = 'intro';
-    this.ui.show('intro');
-    this.intro = new Intro(this, () => { this.intro = null; this.toMenu(); });
-  }
-
   toMenu(screen = 'title') {
     this.endSession();
     this.mode = 'menu';
@@ -164,19 +154,26 @@ export class App {
   }
 
   endSession() {
-    // anything that takes over mid-intro (not its own ending) cancels it
-    if (this.intro) { this.intro.dispose(); this.intro = null; }
+    if (this.raceIntro) { this.raceIntro.dispose(); this.raceIntro = null; }
     if (this.session) { this.session.dispose(); this.session = null; }
     this.audio.stopEngines();
+  }
+
+  // the pre-race intro (not for time trials, restarts or test runs)
+  introOn() {
+    return this.settings.raceIntro !== false && !this.params.has('nointro') && !this.params.has('dev');
   }
 
   async startRace(opts) {
     this.endSession();
     this.mode = 'loading';
+    const { intro: introOpt, ...keep } = opts;
+    const mode = opts.mode || 'timetrial';
+    const intro = mode === 'race' && introOpt !== false && this.introOn();
+    if (intro) this.audio.prepIntro(); // the song loads while the track builds
     this.ui.loading(opts.def);
     await afterPaint();
     const def = opts.def;
-    const mode = opts.mode || 'timetrial';
     const rec = this.records[def.id];
     const ghostOn = this.settings.ghost && mode === 'timetrial';
     const ghost = ghostOn ? load('ghost.' + def.id, null) : null;
@@ -188,7 +185,7 @@ export class App {
       const skillBase = { easy: 0.72, medium: 0.83, hard: 0.92, pro: 1.0 }[opts.difficulty || 'medium'];
       for (let i = 0; i < n; i++) bots.push({ name: BOT_NAMES[(first + i) % BOT_NAMES.length], custom: randomBotCar(rnd), skill: skillBase - rnd() * 0.05 + (i === 0 ? 0.03 : 0) });
     }
-    this.lastRace = { ...opts, def, mode };
+    this.lastRace = { ...keep, def, mode };
     this.session = new Session(this, {
       def, mode, laps: opts.laps, bots,
       player: { name: this.playerName(), custom: this.profile.car },
@@ -200,11 +197,12 @@ export class App {
     this.ui.show('hud');
     this.audio.setMusic(null);
     this.audio.startEngines(this.session);
+    if (intro) this.raceIntro = new RaceIntro(this, this.session);
   }
 
   restartRace() {
     if (!this.lastRace) return;
-    this.startRace(this.lastRace);
+    this.startRace({ ...this.lastRace, intro: false });
   }
 
   quitRace() {
@@ -254,6 +252,7 @@ export class App {
     if (!me) { this.ui.toast('Race started without you - you will join the next one.'); return; }
     this.endSession();
     this.mode = 'loading';
+    if (m.intro) this.audio.prepIntro();
     this.ui.loading(def);
     await afterPaint();
     if (this.net !== net) { this.ui.loading(null); return; }
@@ -271,6 +270,8 @@ export class App {
     this.ui.show('hud');
     this.audio.setMusic(null);
     this.audio.startEngines(this.session);
+    // the host pushed the start back for the intro; with it off here, just count down
+    if (m.intro) this.raceIntro = new RaceIntro(this, this.session, { watch: this.introOn() });
   }
 
   onNetLobby() {
@@ -287,6 +288,7 @@ export class App {
 
   onPause() {
     if (this.mode !== 'race' || !this.session) return;
+    if (this.raceIntro?.skip()) return; // Esc during the intro skips it
     if (this.ui.current === 'results') return;
     if (this.session.mode === 'online') { this.ui.togglePause(); return; }
     const p = !this.session.paused;
@@ -370,11 +372,7 @@ export class App {
     this.input.pollPad();
     this._autoQuality(dt);
     const inp = this.input.state();
-    if (this.mode === 'intro' && this.intro) {
-      this.intro.update(dt);
-      this.audio.update(this.session, dt, inp);
-      this.renderer.render();
-    } else if (this.mode === 'garage' && this.ui.garage) {
+    if (this.mode === 'garage' && this.ui.garage) {
       this.ui.garage.update(dt);
     } else if (this.mode === 'editor' && this.ui.editor) {
       this.ui.editor.update(dt);
@@ -382,6 +380,10 @@ export class App {
       this.renderer.renderer.setClearColor(0x0b101b, 1);
       this.renderer.renderer.clear();
     } else if (this.session) {
+      if (this.raceIntro) {
+        this.raceIntro.update(dt); // moves the camera before the frame is drawn
+        if (this.raceIntro?.state === 'done') this.raceIntro = null;
+      }
       this.session.update(dt, inp);
       if (this.mode === 'menu') this._demoDirector(dt);
       if (this.mode === 'race') this.handleEvents();

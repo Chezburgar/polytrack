@@ -7,6 +7,7 @@ import { TRACKS } from '../track/tracks.js';
 import { sanitize, shareable } from '../track/custom.js';
 import { BOT_NAMES, randomBotCar } from '../car/presets.js';
 import { mulberry32 } from '../util/math.js';
+import { INTRO_LENGTH } from '../game/intro.js';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const MAX_PLAYERS = 8;
@@ -216,7 +217,9 @@ export class NetSession {
     for (let i = 0; i < Math.min(this.settings.bots, MAX_PLAYERS - grid.length); i++) {
       grid.push({ id: 'bot' + i, name: BOT_NAMES[(i * 3 + 5) % BOT_NAMES.length] + ' (AI)', car: randomBotCar(rnd), kind: 'bot', slot: slot++, skill: skill - rnd() * 0.04 });
     }
-    const msg = { t: 'start', trackId: def.id, def: def.custom ? shareable(def) : null, laps: def.laps ? this.settings.laps || def.laps : 0, grid, startAt: this.now() + 5200 };
+    // with the pre-race intro on, the start moves back to make room for it
+    const intro = !!this.app.introOn?.();
+    const msg = { t: 'start', trackId: def.id, def: def.custom ? shareable(def) : null, laps: def.laps ? this.settings.laps || def.laps : 0, grid, intro, startAt: this.now() + 5200 + (intro ? INTRO_LENGTH * 1000 : 0) };
     this.t.broadcast(msg);
     this._begin(msg);
   }

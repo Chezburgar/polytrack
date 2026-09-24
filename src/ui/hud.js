@@ -63,9 +63,7 @@ export class HUD {
       ? (mode === 'timetrial' ? 'Back restart · ' : '') + 'X camera · Start pause'
       : (mode === 'timetrial' ? 'Backspace restart · ' : mode === 'online' ? 'Enter chat · ' : '') + 'C camera · Space drift · Esc pause';
     this.hint.textContent = kb;
-    this.hint.classList.remove('fade');
-    clearTimeout(this.hintTimer);
-    this.hintTimer = setTimeout(() => this.hint.classList.add('fade'), 7000);
+    this.showHint();
     this.standings.style.display = session.entries.filter((e) => e.kind !== 'ghost').length > 1 ? '' : 'none';
     const rec = this.app.records[session.opts.def.id];
     this.pb = rec?.best ?? null;
@@ -77,6 +75,13 @@ export class HUD {
     this.tags.clear();
     this.standings.replaceChildren(); // the last race's drivers must not linger through this countdown
     this.clearFinish();
+  }
+
+  // the key hints, for a few seconds (again after the pre-race intro)
+  showHint() {
+    this.hint.classList.remove('fade');
+    clearTimeout(this.hintTimer);
+    this.hintTimer = setTimeout(() => this.hint.classList.add('fade'), 7000);
   }
 
   set(key, el, value, prop = 'textContent') {

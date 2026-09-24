@@ -2,7 +2,7 @@
   "name": "polytrack",
   "version": "1.0.0",
   "private": true,
-  "description": "PolyTrack - a low-poly multiplayer 3D racing game for the browser",
+  "description": "PolyTrack Pro - a low-poly multiplayer 3D racing game for the browser",
   "type": "module",
   "scripts": {
     "start": "node tools/serve.mjs",

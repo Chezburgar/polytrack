@@ -98,9 +98,12 @@ input, select { font-family: inherit; user-select: text; -webkit-user-select: te
 .logo { display: flex; align-items: center; gap: 14px; }
 .logo-mark { width: 64px; height: 64px; display: block; flex: none; filter: drop-shadow(0 6px 18px rgba(0,0,0,0.5)); }
 .logo-mark svg { width: 100%; height: 100%; }
-.logo-word { font-size: 56px; font-weight: 900; font-style: italic; letter-spacing: 1px; line-height: 1; text-shadow: 0 4px 24px rgba(0,0,0,0.55); }
+.logo-word { position: relative; white-space: nowrap; font-size: 56px; font-weight: 900; font-style: italic; letter-spacing: 1px; line-height: 1; text-shadow: 0 4px 24px rgba(0,0,0,0.55); }
 .logo-word b { color: #fff; }
 .logo-word i { color: var(--accent); font-style: italic; }
+/* the PRO tag hangs under the end of TRACK */
+.logo-word em, .boot-logo em { position: absolute; right: 0.1em; bottom: -1em; padding: 0.12em 0.34em 0.08em; font-size: 0.3em; font-style: italic; font-weight: 900; letter-spacing: 3px; line-height: 1; color: #0b101b; background: linear-gradient(135deg, #ffe066, #f39c34); transform: skewX(-10deg); text-shadow: none; box-shadow: 0 4px 14px rgba(0,0,0,0.35); }
+.boot-logo { position: relative; }
 .logo.big .logo-mark { width: 88px; height: 88px; }
 .logo.big .logo-word { font-size: 82px; }
 .logo.small .logo-mark { width: 40px; height: 40px; }
@@ -509,35 +512,41 @@ kbd.pad { background: rgba(57,198,240,0.14); color: #9fe6ff; }
   .be-top h1 { display: none; }
 }
 
-/* ---------- intro ---------- */
-.intro { position: fixed; inset: 0; z-index: 30; pointer-events: none; font-style: italic; }
-.intro.leave { opacity: 0; transition: opacity 0.8s; }
-.in-bars i { position: absolute; left: 0; right: 0; height: 9vh; background: #000; transform: scaleY(0); transition: transform 0.6s ease-out; }
-.in-bars i:first-child { top: 0; transform-origin: top; }
-.in-bars i:last-child { bottom: 0; transform-origin: bottom; }
-.intro.running .in-bars i { transform: scaleY(1); }
-.in-gate { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; background: radial-gradient(ellipse at 50% 45%, rgba(20,32,58,0.72), rgba(5,8,14,0.93) 70%); pointer-events: auto; cursor: pointer; transition: opacity 0.5s; font-style: normal; }
-.in-gate.gone { opacity: 0; pointer-events: none; }
-.in-gate .logo .logo-word { font-size: 64px; }
-.in-click { font-size: 26px; font-weight: 900; letter-spacing: 6px; text-transform: uppercase; color: #fff; animation: ffPulse 0.9s ease-in-out infinite alternate; }
-.in-sub { color: var(--muted); font-size: 13px; letter-spacing: 3px; text-transform: uppercase; }
-.in-card { position: absolute; left: 6vw; bottom: 15vh; }
-.in-name { display: flex; flex-direction: column; gap: 2px; padding-left: 16px; border-left: 6px solid var(--c, var(--accent)); animation: inName 0.5s cubic-bezier(.2,.9,.3,1) forwards; }
-.in-name b { font-size: clamp(46px, 7vw, 96px); font-weight: 900; line-height: 0.95; color: #fff; letter-spacing: 2px; text-shadow: 0 4px 24px rgba(0,0,0,0.7); }
-.in-name span { font-size: clamp(14px, 1.5vw, 20px); color: #dfe8f5; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; font-style: normal; text-shadow: 0 2px 10px #000; }
+/* ---------- pre-race intro ---------- */
+.intro { position: fixed; inset: 0; z-index: 30; font-style: italic; cursor: pointer; }
+.intro.waiting, .intro.leave { pointer-events: none; cursor: default; }
+.intro.leave { opacity: 0; transition: opacity 0.6s; }
+.in-bars i { position: absolute; left: 0; right: 0; height: 9vh; background: #000; transition: transform 1s ease-in-out; }
+.in-bars i:first-child { top: 0; }
+.in-bars i:last-child { bottom: 0; }
+.intro.settle .in-bars i:first-child { transform: translateY(-100%); }
+.intro.settle .in-bars i:last-child { transform: translateY(100%); }
+.in-title { position: absolute; left: 6vw; top: 15vh; display: flex; flex-direction: column; gap: 8px; opacity: 0; transform: translateX(-40px); transition: opacity 0.5s, transform 0.7s cubic-bezier(.2,.9,.3,1); }
+.in-title.on { opacity: 1; transform: none; }
+.in-title b { font-size: clamp(40px, 6.5vw, 92px); font-weight: 900; line-height: 0.95; color: #fff; letter-spacing: 1px; text-transform: uppercase; text-shadow: 0 4px 26px rgba(0,0,0,0.65); }
+.in-title span { font-size: clamp(13px, 1.4vw, 19px); color: #e6eef9; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; font-style: normal; text-shadow: 0 2px 10px #000; }
+.in-card { position: absolute; left: 6vw; bottom: 15vh; transition: opacity 0.4s; }
+.intro.settle .in-card { opacity: 0; }
+.in-name { display: flex; align-items: center; gap: 18px; animation: inName 0.5s cubic-bezier(.2,.9,.3,1) both; }
+.in-pos { font-size: clamp(30px, 4.2vw, 60px); font-weight: 900; line-height: 1; color: #0b101b; background: var(--c, var(--accent)); padding: 10px 14px 8px 10px; transform: skewX(-10deg); box-shadow: 0 6px 24px rgba(0,0,0,0.45); }
+.in-who { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding-left: 14px; border-left: 5px solid var(--c, var(--accent)); }
+.in-who b { font-size: clamp(44px, 6.8vw, 96px); font-weight: 900; line-height: 0.95; color: #fff; letter-spacing: 2px; text-shadow: 0 4px 24px rgba(0,0,0,0.7); }
+.in-who span { font-size: clamp(13px, 1.4vw, 19px); color: #dfe8f5; font-weight: 700; letter-spacing: 2px; font-style: normal; text-shadow: 0 2px 10px #000; }
+.in-who em { font-style: normal; font-weight: 900; font-size: clamp(12px, 1.1vw, 15px); letter-spacing: 3px; color: #0b101b; background: #ffd23c; padding: 3px 9px 2px; }
 @keyframes inName { 0% { opacity: 0; transform: translateX(-40px) skewX(-6deg); } 100% { opacity: 1; transform: none; } }
-.in-logo { position: absolute; left: 50%; top: 44%; transform: translate(-50%, -50%) scale(2.6); opacity: 0; display: flex; flex-direction: column; align-items: center; gap: 14px; font-style: normal; }
-.in-logo.on { animation: inLogo 0.6s cubic-bezier(.15,1.35,.35,1) forwards; }
-.in-logo .logo-word { font-size: clamp(60px, 9vw, 120px); filter: drop-shadow(0 8px 30px rgba(0,0,0,0.6)); }
-.in-logo .logo-mark { width: clamp(64px, 9vw, 120px); height: clamp(64px, 9vw, 120px); }
-.in-tag { font-size: clamp(14px, 1.6vw, 22px); color: #fff; font-weight: 700; letter-spacing: 1px; opacity: 0; text-shadow: 0 2px 12px #000; }
-.in-logo.on .in-tag { animation: ffUp 0.5s ease-out 0.5s forwards; }
-@keyframes inLogo { 0% { opacity: 0; transform: translate(-50%, -50%) scale(2.6); filter: blur(10px); } 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); filter: none; } }
-.in-skip { position: absolute; right: 3vw; bottom: calc(9vh + 14px); color: rgba(255,255,255,0.6); font-size: 12px; letter-spacing: 2px; text-transform: uppercase; font-style: normal; opacity: 0; transition: opacity 0.6s; }
+.in-ready { position: absolute; left: 50%; top: 36%; transform: translate(-50%, -50%) scale(1.3); font-size: clamp(34px, 5vw, 72px); font-weight: 900; color: #fff; letter-spacing: 8px; white-space: nowrap; opacity: 0; text-shadow: 0 4px 26px rgba(0,0,0,0.6); transition: opacity 0.45s, transform 0.6s cubic-bezier(.2,.9,.3,1); }
+.intro.settle .in-ready { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.in-skip { position: absolute; right: 3vw; bottom: calc(9vh + 14px); color: rgba(255,255,255,0.65); font-size: 12px; letter-spacing: 2px; text-transform: uppercase; font-style: normal; opacity: 0; transition: opacity 0.6s; }
 .in-skip.on { opacity: 1; }
-.in-fade { position: absolute; inset: 0; background: #000; opacity: 0; transition: opacity 1.3s ease-in; }
-.in-fade.quick { transition-duration: 0.4s; }
+.intro.settle .in-skip { opacity: 0; }
+.in-wait { position: absolute; left: 50%; top: 26%; transform: translateX(-50%); display: none; font-size: clamp(22px, 2.6vw, 34px); font-weight: 900; letter-spacing: 4px; color: #fff; white-space: nowrap; text-shadow: 0 3px 16px rgba(0,0,0,0.7); }
+.intro.waiting > :not(.in-wait) { display: none; }
+.intro.waiting .in-wait { display: block; }
+.in-fade { position: absolute; inset: 0; background: #000; opacity: 0; transition: opacity 0.6s ease-out; pointer-events: none; }
+.in-fade.quick { transition-duration: 0.28s; }
 .in-fade.on { opacity: 1; }
+.hud-layer .hud { transition: opacity 0.5s; }
+.hud-layer.cinema .hud, .hud-layer.cinema .hud-chat:not(.typing) { opacity: 0; }
 
 /* ---------- loading ---------- */
 .loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(8,12,22,0.86); opacity: 0; pointer-events: none; transition: opacity 0.15s; z-index: 5; }

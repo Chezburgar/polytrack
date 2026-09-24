@@ -54,6 +54,7 @@ export class Session {
     this.paused = false;
     this.spectate = null;
     this.startAt = null; // wall-clock start for online races
+    this.hold = false; // parked on the grid through the pre-race intro: the countdown waits
     this.timeScale = 1; // slow motion for the finish (single player only)
     this.slowmo = null;
     this.loadMs = performance.now() - t0;
@@ -177,26 +178,30 @@ export class Session {
     this._render(this.acc / DT, renderDt, input);
   }
 
+  // three steps (lights 2, 4, 5 of the gantry), then green
+  _countdown(dt) {
+    if (this.startAt != null) this._cd = this.countdownLeft;
+    else this._cd = (this._cd ?? this.countdown) - dt;
+    const step = this.countdown / 3;
+    const lit = this._cd > this.countdown ? 0 : clamp(3 - Math.floor(this._cd / step), 1, 3);
+    if (lit !== this._lit && this._cd > 0) {
+      this._lit = lit;
+      if (lit > 0) { setStartLights(this.view.track, [0, 2, 4, 5][lit]); this.emit('count', { n: 4 - lit }); }
+    }
+    this.time = -Math.max(0, this._cd);
+    if (this._cd <= 0) {
+      this.state = 'racing';
+      this.time = 0;
+      setStartLights(this.view.track, 'go');
+      this.emit('go');
+      this.message('GO!', 'go', 1.0);
+    }
+  }
+
   _fixed(dt, input) {
-    // countdown
+    // the countdown waits while the pre-race intro holds the cars on the grid
     if (this.state === 'countdown') {
-      // three steps (lights 2, 4, 5 of the gantry), then green
-      if (this.startAt != null) this._cd = this.countdownLeft;
-      else this._cd = (this._cd ?? this.countdown) - dt;
-      const step = this.countdown / 3;
-      const lit = this._cd > this.countdown ? 0 : clamp(3 - Math.floor(this._cd / step), 1, 3);
-      if (lit !== this._lit && this._cd > 0) {
-        this._lit = lit;
-        if (lit > 0) { setStartLights(this.view.track, [0, 2, 4, 5][lit]); this.emit('count', { n: 4 - lit }); }
-      }
-      this.time = -Math.max(0, this._cd);
-      if (this._cd <= 0) {
-        this.state = 'racing';
-        this.time = 0;
-        setStartLights(this.view.track, 'go');
-        this.emit('go');
-        this.message('GO!', 'go', 1.0);
-      }
+      if (!this.hold) this._countdown(dt);
     } else {
       this.time += dt;
     }
@@ -509,7 +514,7 @@ export class Session {
     if (focus) {
       const target = this._camTarget(focus);
       this.camera.update(target, dt || 1 / 60, this.world, input?.lookBack);
-      this.renderer.followShadow(target.pos);
+      if (this.camera.mode !== 'script') this.renderer.followShadow(target.pos); // the intro aims its own
       if (focus.car && focus.kind === 'player') {
         if (focus.car.landing > 6) this.camera.shake = Math.max(this.camera.shake, Math.min(1.2, focus.car.landing / 12));
         if (focus.car.impact > 3000) this.camera.shake = Math.max(this.camera.shake, Math.min(1.5, focus.car.impact / 9000));

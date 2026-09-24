@@ -472,7 +472,7 @@ export async function decodeShare(text) {
   if (s.startsWith('{')) json = s; // a pasted file
   else {
     const m = /^PT([01])\.([A-Za-z0-9_-]+)$/.exec(s.replace(/\s+/g, ''));
-    if (!m) throw new Error('That is not a PolyTrack track code.');
+    if (!m) throw new Error('That is not a PolyTrack Pro track code.');
     if (m[2].length > 40000) throw new Error('That code is too long.');
     let bytes = unb64url(m[2]);
     if (m[1] === '1') {

@@ -71,7 +71,7 @@ export class SettingsScreen {
         row('Speed units', this.seg('units', [['kmh', 'km/h'], ['mph', 'mph']])),
         row('Ghost of your best run', this.toggle('ghost'), 'Time trials only'),
         row('Touch controls', this.seg('touch', [['auto', 'Auto'], ['on', 'On'], ['off', 'Off']])),
-        row('Intro on startup', this.toggle('intro'), 'The 15 second opener - any key skips it')),
+        row('Pre-race intro', this.toggle('raceIntro'), 'A 30 second look at the track and the racers before a race - Space skips it')),
       sec('Controls',
         h('div.keys',
           ...[['Accelerate', 'W / ↑', 'RT'], ['Brake / reverse', 'S / ↓', 'LT'], ['Steer', 'A D / ← →', 'Left stick'], ['Drift (handbrake)', 'Space / Shift', 'RB'],

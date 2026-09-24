@@ -1,4 +1,4 @@
-// Local dev server for PolyTrack. Serves the repo root with no caching.
+// Local dev server for PolyTrack Pro. Serves the repo root with no caching.
 // Dev-only extras: POST /__shot?name=x saves a canvas data URL to .shots/x.png,
 // POST /__log appends a line to .shots/page.log. The public build is plain static
 // files and needs neither.
@@ -67,4 +67,4 @@ createServer(async (req, res) => {
   } catch (e) {
     res.writeHead(500).end(String(e));
   }
-}).listen(port, () => console.log(`PolyTrack dev server: http://localhost:${port}/`));
+}).listen(port, () => console.log(`PolyTrack Pro dev server: http://localhost:${port}/`));

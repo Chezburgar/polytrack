@@ -1,4 +1,4 @@
-# PolyTrack
+# PolyTrack Pro
 
 A low-poly 3D racing game for the browser: 20 tracks across nine themes, a
 track builder for your own, eight car bodies with a full garage, AI opponents,
@@ -16,9 +16,13 @@ npm start       # http://localhost:5180
 
 It also runs from GitHub Pages or any static host as-is.
 
-It opens with a 15 second intro: the whole field on the grid, the lights going
-green on the music's drop, the pack flying the first jump in slow motion. Any key
-or click skips it; it can be turned off in Settings (`?nointro` skips it once).
+**Pre-race intro.** Races against other cars open with 30 seconds of TV-style
+build-up to its own song: a flyover of the track (its name, then its jumps, loops
+and tunnels), then the camera finds every racer on the grid, back row first, and
+names them - the song drops on the first - and ends on your car, settling into
+the chase camera as the countdown starts. Space, Esc, a click or the pad's A
+skips it; Settings turns it off (`?nointro` skips it once). Time trials and
+restarts go straight to the countdown.
 
 | Action | Keyboard | Gamepad |
 | --- | --- | --- |
@@ -63,7 +67,9 @@ points. Braking cancels a boost pad's push.
   Metered TURN relays for networks that block direct connections; the host
   relays positions and runs any AI drivers, and the race clock is the host's, so
   finish times are fair. Chat in the lobby (with quick messages) and during the
-  race. The host can pick any of their own tracks; it is sent to everyone.
+  race. The host can pick any of their own tracks; it is sent to everyone. With
+  the host's pre-race intro on, the start waits for it and everyone watches it
+  together (skip it and a clock counts down to the start).
   `?net=local` swaps in a same-browser transport for testing with two tabs.
 
 ## Track Builder
@@ -133,7 +139,7 @@ that the route solver turns into the same piece strings.
 - `node tools/physics-test.mjs` - acceleration, braking, cornering and drift checks.
 - `node tools/browse.mjs <script>` - drives the game in headless Chrome and saves
   screenshots to `.shots/` (see `.scratch/` for examples; not committed). It opens
-  the local server at `/?nointro` by default (`--url=/` plays the intro);
+  the local server at `/?nointro` by default (`--url=/` keeps the pre-race intro);
   `--url=https://chezburgar.github.io/polytrack/` tests the live site.
 - `dev/preview.html` - top-down map and elevation profile of every track.
 - `npm run vendor` - recopies three.js and PeerJS from `node_modules` into `vendor/`.
@@ -145,14 +151,14 @@ src/physics   car (raycast suspension, tyre model, air + ramp assists), car cont
 src/track     piece builder, road geometry, terrain, themes, the 20 tracks, medals, custom tracks,
               builder blocks + route solver
 src/game      race session, checkpoints/laps, track limits, AI driver, camera, ghosts, verifier,
-              finish celebration, the intro
+              finish celebration, the pre-race intro
 src/render    renderer + bloom, sky, scenery, props, effects
 src/car       procedural car bodies, liveries, presets
 src/net       PeerJS / BroadcastChannel transports, room + race protocol
 src/ui        screens (incl. the track builder), HUD, chat, touch controls, styles
-src/core      input, audio (synthesised engines/tyres/effects, menu + intro music)
-assets/audio  the two menu songs (the intro plays menu-2 from 0:16; the menu plays both in turn)
+src/core      input, audio (synthesised engines/tyres/effects, menu and intro songs)
+assets/audio  the menu song (menu-music.mp3) and the pre-race intro's (menu-2.mp3)
 ```
 
-Everything visual is generated in code, and so is every sound except the menu
-music; the only third-party code is three.js and PeerJS in `vendor/`.
+Everything visual is generated in code, and so is every sound except the two
+songs; the only third-party code is three.js and PeerJS in `vendor/`.

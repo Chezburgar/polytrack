@@ -1,4 +1,4 @@
-// Rigid-body car on four raycast wheels. Every car in PolyTrack shares this one
+// Rigid-body car on four raycast wheels. Every car in PolyTrack Pro shares this one
 // handling model, so a race is decided by driving, not by the garage.
 //
 // Body frame: +X left, +Y up, +Z forward (right-handed). Positions are the

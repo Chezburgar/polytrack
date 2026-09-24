@@ -1,250 +1,435 @@
-// The 15 second intro: every car on the grid of Island Hopper, each named as
-// the camera rolls past; the lights go green on the song's drop; the pack
-// launches and flies the first jump in slow motion; the logo slams in over an
-// aerial shot; fade to the menu. It opens on a "click to start" card (browsers
-// only allow sound after a click) and any key or click skips it.
+// The pre-race intro: 30 seconds before a race against other cars. The camera
+// flies over the track - its name, then its jumps, loops and tunnels - while
+// menu 2 builds; then it finds each racer on the grid, back row first, and names
+// them (the song drops on the first); it ends on your car and settles into the
+// chase camera as the countdown starts. Space, Esc, a click or the pad's A skips
+// it. Online it runs on the host's clock: the start is pushed back to fit it.
 import * as THREE from 'three';
-import { Session } from './session.js';
-import { getTrackDef } from '../track/tracks.js';
 import { frameAt, gridSlot } from '../track/geometry.js';
-import { PRESETS } from '../car/presets.js';
 import { BODIES } from '../car/bodies.js';
-import { DEFAULT_CAR } from '../car/model.js';
 import { h } from '../ui/dom.js';
-import { logo } from '../ui/screens/title.js';
 import { clamp, smoothstep, lerp } from '../util/math.js';
 
-export const INTRO_LENGTH = 15;
-const GREEN = 5.0; // the lights go green here (the music's drop)
-const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _c = new THREE.Vector3();
+export const INTRO_LENGTH = 30;
+const DROP = 21; // menu 2 drops 21 s in
+const HERO = 4.2; // your car: a turn around it, then down into the chase camera
+const SETTLE = 1.6; // the last part of that
+const UP = new THREE.Vector3(0, 1, 0);
+const _p = new THREE.Vector3(), _q = new THREE.Vector3(), _f = new THREE.Vector3(), _l = new THREE.Vector3();
 
-export class Intro {
-  constructor(app, done) {
+export class RaceIntro {
+  // watch: false (online, with the intro turned off here) only counts down to
+  // the start the host pushed back
+  constructor(app, session, { watch = true } = {}) {
     this.app = app;
-    this.done = done;
-    this.state = 'wait';
+    this.s = session;
+    this.track = session.track;
+    this.online = session.mode === 'online';
+    this.player = session.player;
     this.t = 0;
-    this.cards = [];
+    const touch = matchMedia('(pointer: coarse)').matches;
     this.el = h('div.intro',
       h('div.in-bars', h('i'), h('i')),
+      this.titleEl = h('div.in-title'),
       this.cardEl = h('div.in-card'),
-      this.logoEl = h('div.in-logo', logo('big'), h('div.in-tag', 'Low-poly racing. Twenty tracks. Your car, your way.')),
-      this.skipEl = h('div.in-skip', 'Press any key to skip'),
-      this.fadeEl = h('div.in-fade'),
-      this.gateEl = h('div.in-gate',
-        logo('big'),
-        h('div.in-click', 'Click to start'),
-        h('div.in-sub', 'or press any key')));
+      h('div.in-ready', 'GET READY'),
+      this.skipEl = h('div.in-skip', touch ? 'Tap to skip' : 'Space to skip'),
+      this.waitEl = h('div.in-wait'),
+      this.fadeEl = h('div.in-fade.on'));
     app.ui.root.append(this.el);
-    this._input = (e) => this.onInput(e);
-    // after the audio unlock listener, which runs in the capture phase
-    window.addEventListener('pointerdown', this._input);
-    window.addEventListener('keydown', this._input);
-    this.build();
-    this.song = app.audio.prepIntro(); // loads while the card waits for a click
-  }
+    if (!watch) { this.wait(); return; }
 
-  build() {
-    const app = this.app;
-    const def = getTrackDef('island-hopper');
-    const bots = PRESETS.map((p, i) => ({ id: 'car' + i, name: BODIES[p.car.body]?.name || p.name, custom: { ...DEFAULT_CAR, ...p.car, number: i + 1, showNumber: true }, skill: 0.985 + (i % 3) * 0.005, slot: i }));
-    const s = (this.session = new Session(app, { def, mode: 'intro', laps: 0, bots, player: null }));
-    s.countdown = GREEN;
-    s.camera.setMode('script');
-    s.focus = s.entries[0];
-    app.session = s;
-    this.track = s.track;
-    this.cars = s.entries;
-    // the grid, back row first, as the camera will pass them
-    this.order = this.cars.slice().sort((a, b) => a.race.spawn.s - b.race.spawn.s);
-    const kick = this.track.samples.find((sm) => sm.kind === 'K');
-    this.kickS = kick ? kick.s : this.track.start.s + 64;
-    const gapEnd = this.track.samples.find((sm) => sm.s > this.kickS && sm.kind !== 'K' && sm.kind !== 'J' && sm.road);
-    this.landS = gapEnd ? gapEnd.s : this.kickS + 45;
-  }
-
-  onInput(e) {
-    if (this.state === 'wait') {
-      if (e.type === 'keydown' && (e.ctrlKey || e.altKey || e.metaKey)) return;
-      this.begin();
-    } else if (this.state === 'run' && this.t > 0.6) this.skip();
-  }
-
-  begin() {
-    this.state = 'cue'; // until the song is actually playing
-    this.t = 0;
+    this.state = this.online ? 'run' : 'cue'; // cue: waiting for the music to start
     this.hold = 0;
-    this.gateEl.classList.add('gone');
-    this.el.classList.add('running');
-    this.app.audio.unlock();
-    this.song = this.app.audio.playIntro();
-  }
-
-  skip() {
-    if (this.state !== 'run') return;
-    this.state = 'out';
-    this.app.audio.stopIntro(0.6);
-    this.fadeEl.classList.add('on', 'quick');
-    setTimeout(() => this.finish(), 450);
-  }
-
-  finish() {
-    if (this.state === 'end') return;
-    this.state = 'end';
-    window.removeEventListener('pointerdown', this._input);
-    window.removeEventListener('keydown', this._input);
-    this.done();
-    // lift the black once the menu's backdrop race is built and drawn, so its
-    // build doesn't stall the fade
-    const t0 = performance.now();
-    const reveal = () => {
-      if (!this.app.session && performance.now() - t0 < 2500) { requestAnimationFrame(reveal); return; }
-      requestAnimationFrame(() => {
-        this.el.classList.add('leave');
-        setTimeout(() => this.el.remove(), 900);
-      });
+    // everyone but you, back of the grid first; then you
+    this.order = session.entries.filter((e) => e.kind !== 'ghost' && e !== this.player).sort((a, b) => b.slot - a.slot);
+    const n = this.order.length;
+    this.per = n ? clamp(15.5 / n, 2.2, 4) : 0;
+    this.fly = INTRO_LENGTH - HERO - n * this.per; // the flyover takes the rest
+    this.cue = Math.max(0, DROP - this.fly); // so the song drops on the first racer
+    this.terrain = session.loaded.terrain;
+    this.theme = session.loaded.theme;
+    this.water = this.theme.ground === 'water' || this.theme.ground === 'lava' ? -1.2 : -Infinity;
+    const racers = session.entries.filter((e) => e.kind !== 'ghost');
+    this.gridBack = gridSlot(this.track, Math.max(0, ...racers.map((e) => e.slot))).s;
+    this.shots = this.plan();
+    this.titleCard();
+    const fog = app.renderer.scene.fog;
+    this.fog = fog ? { near: fog.near, far: fog.far } : null;
+    session.camera.setMode('script');
+    session.hold = !this.online; // parked on the grid; the countdown waits for us
+    app.ui.hudLayer.classList.add('cinema');
+    app.ui.touch.setActive(false);
+    this._key = (e) => {
+      if (e.code === 'Space' || (!this.online && (e.code === 'Enter' || e.code === 'NumpadEnter'))) { e.preventDefault(); this.skip(); }
     };
-    requestAnimationFrame(reveal);
+    this._click = () => this.skip();
+    window.addEventListener('keydown', this._key);
+    this.el.addEventListener('pointerdown', this._click);
+    this.offPad = app.input.on('menuSelect', () => this.skip());
+    if (!this.online) app.audio.playIntro(this.cue);
+    this.frame(0);
+  }
+
+  // ---- clock ---------------------------------------------------------------------
+  // seconds left until the countdown starts (online: on the host's clock)
+  left() {
+    const s = this.s;
+    return (s.startAt - (this.app.net?.now() ?? performance.now())) / 1000 - s.countdown;
   }
 
   update(dt) {
-    const s = this.session;
-    if (this.state === 'wait' || this.state === 'cue') {
-      this.shotGrid(0);
-      s._render(0, dt, null);
-      // hold the first frame until the song plays (or it's clearly not coming)
-      if (this.state === 'cue' && (this.app.audio.introTime() != null || (this.hold += dt) > 2)) this.state = 'run';
+    if (this.state === 'wait') {
+      const left = this.left();
+      if (left <= 0.05) { this.state = 'done'; this.el.remove(); return; }
+      this.waitEl.textContent = `STARTING IN ${Math.ceil(left)}`;
       return;
     }
-    if (this.state === 'end') return;
-    this.t += dt;
-    // keep time with the song, and the lights with it: green lands on the drop
-    const songT = this.app.audio.introTime();
-    if (songT != null) this.t = Math.abs(songT - this.t) > 0.25 ? songT : this.t + (songT - this.t) * 0.1;
-    const T = this.t;
-    if (T < GREEN) s._cd = GREEN - T;
-    // slow motion while the pack is in the air over the first gap
-    const lead = this.leader();
-    const flying = T > GREEN && this.cars.some((e) => e.car && !e.car.grounded && e.car.airTime > 0.12 && e.prog.s > this.kickS - 5 && e.prog.s < this.landS + 10);
-    if (flying) this.slowT = (this.slowT || 0) + dt; // the front of the pack, not every straggler
-    s.timeScale = flying && this.slowT < 2.8 ? lerp(s.timeScale, 0.38, 0.2) : lerp(s.timeScale, 1, 0.12);
-    s.update(dt, NO_INPUT);
-    this.direct(T, dt, lead);
-    this.overlays(T);
-    if (this.state === 'run' && T >= INTRO_LENGTH - 1.4) {
-      this.state = 'out';
-      this.app.audio.stopIntro(1.4);
-      this.fadeEl.classList.add('on');
-      setTimeout(() => this.finish(), 1400);
+    if (this.state !== 'run' && this.state !== 'cue') return;
+    const audio = this.app.audio;
+    if (this.online) {
+      this.t = INTRO_LENGTH - this.left();
+      if (this.t < 0) { this.frame(0); return; } // here early: hold the opening frame
+      if (!this.playing) { this.playing = true; audio.playIntro(this.cue + this.t); this.fadeEl.classList.remove('on'); }
+    } else if (this.state === 'cue') {
+      // hold the opening frame until the music is really playing, or clearly isn't coming
+      this.hold += dt;
+      const st = audio.introTime();
+      if (st == null && this.hold < 2.5) { this.frame(0); return; }
+      this.state = 'run';
+      this.synced = st != null;
+      this.t = Math.max(0, st ?? 0);
+      this.fadeEl.classList.remove('on');
+    } else {
+      this.t += dt;
+      // keep time with the song
+      const st = this.synced ? audio.introTime() : null;
+      if (st != null) this.t = Math.abs(st - this.t) > 0.25 ? st : this.t + (st - this.t) * 0.1;
     }
+    if (!this.fading && this.t > INTRO_LENGTH - 1.2) { this.fading = true; audio.stopIntro(4); } // gone by GO
+    if (this.t >= INTRO_LENGTH) { this.end(); return; }
+    this.frame(this.t);
   }
 
-  leader() {
-    let best = this.cars[0];
-    for (const e of this.cars) if ((e.prog.s ?? 0) > (best.prog.s ?? 0)) best = e;
+  // Space, Esc, a click: cut to your car. Returns whether it did anything.
+  skip() {
+    if ((this.state !== 'run' && this.state !== 'cue') || this.skipping) return false;
+    this.skipping = true;
+    this.app.audio.stopIntro(0.8);
+    this.fadeEl.classList.add('quick', 'on');
+    setTimeout(() => { if (this.state === 'run' || this.state === 'cue') this.end(); }, 300);
+    return true;
+  }
+
+  // hand the race back: chase camera, HUD, the countdown
+  end() {
+    const s = this.s, app = this.app;
+    this.detach();
+    this.restoreFog();
+    s.camera.setMode(app.settings.camera || 'chase');
+    s.camera.snap(s._camTarget(s.focus));
+    s.hold = false;
+    app.ui.hudLayer.classList.remove('cinema');
+    if (app.ui.current === 'hud') app.ui.touch.setActive(true);
+    app.ui.hud?.showHint();
+    if (!this.fading) { this.fading = true; app.audio.stopIntro(this.skipping ? 0.8 : 3); }
+    if (this.online && this.left() > 0.5) { this.wait(); return; }
+    this.state = 'done';
+    this.el.classList.add('leave');
+    setTimeout(() => this.el.remove(), 700);
+  }
+
+  // online, cut short or turned off here: count down to the start
+  wait() {
+    this.state = 'wait';
+    this.el.classList.add('waiting');
+    this.fadeEl.classList.remove('on');
+  }
+
+  detach() {
+    window.removeEventListener('keydown', this._key);
+    this.el.removeEventListener('pointerdown', this._click);
+    this.offPad?.();
+    this.offPad = null;
+  }
+
+  // the race is over before the intro is (quit, disconnect)
+  dispose() {
+    if (this.state === 'run' || this.state === 'cue') this.app.audio.stopIntro(0.3);
+    this.state = 'done';
+    this.detach();
+    this.restoreFog();
+    this.app.ui.hudLayer.classList.remove('cinema');
+    this.el.remove();
+  }
+
+  get cinematic() { return this.state === 'run' || this.state === 'cue'; }
+
+  restoreFog() {
+    const fog = this.app.renderer.scene.fog;
+    if (fog && this.fog) { fog.near = this.fog.near; fog.far = this.fog.far; }
+  }
+
+  // ---- the shot list ---------------------------------------------------------------
+  plan() {
+    const shots = [];
+    const F = this.fly;
+    const A = clamp(F * 0.3, 3, 5); // the track's name over the whole of it
+    const G = F - A >= 6.5 ? 3.6 : 0; // over the grid, front to back
+    const mid = Math.max(0, F - A - G);
+    const k = Math.round(mid / 3.6);
+    let t = 0;
+    const add = (d, shot) => { shots.push({ ...shot, t0: t, t1: t + d }); t += d; };
+    add(k ? A : A + mid, { kind: 'aerial' });
+    for (const f of this.features(k)) add(mid / k, f);
+    if (G) add(G, { kind: 'approach' });
+    this.order.forEach((e, i) => add(this.per, { kind: 'racer', e, style: i % 3, side: this.outSide(e) }));
+    if (this.player) add(INTRO_LENGTH - t, { kind: 'hero', e: this.player, side: this.outSide(this.player) });
+    return shots;
+  }
+
+  // the course's set pieces in race order - loops, jumps, tunnels - topped up
+  // with drone runs along ordinary road
+  features(k) {
+    if (!k) return [];
+    const tr = this.track, S = tr.samples, st = tr.start.s;
+    const L = tr.closed ? tr.length : tr.finish.s - st;
+    const along = (s) => (tr.closed ? (((s - st) % L) + L) % L : s - st);
+    const found = [];
+    for (let i = 0; i < S.length;) {
+      const sm = S[i];
+      let j = i + 1;
+      if (sm.kind === 'LOOP') {
+        while (j < S.length && S[j].kind === 'LOOP') j++;
+        found.push({ kind: 'loop', a: sm.s, b: S[j - 1].s, rank: 3, ...this.loopShot(i, j) });
+      } else if (sm.kind === 'K') {
+        while (j < S.length && S[j].kind === 'K') j++;
+        let g = j;
+        while (g < S.length && S[g].kind === 'J') g++;
+        if (g > j && g < S.length) found.push({ kind: 'jump', a: S[j - 1].s, b: S[g].s, rank: 2 });
+        j = Math.max(j, g);
+      } else if (sm.tunnel && sm.road) {
+        while (j < S.length && S[j].tunnel) j++;
+        if (S[j - 1].s - sm.s > 25) found.push({ kind: 'tunnel', a: sm.s, b: S[j - 1].s, rank: 1 });
+      }
+      i = j;
+    }
+    const inRace = found.filter((f) => along(f.a) > 20 && along(f.a) < L);
+    inRace.sort((x, y) => y.rank - x.rank || along(x.a) - along(y.a));
+    const pick = inRace.slice(0, k);
+    // drone runs where nothing else is, and nowhere near a loop or tunnel
+    const bad = found.filter((f) => f.kind !== 'jump');
+    for (let tries = 0; pick.length < k && tries < 24; tries++) {
+      const s = st + L * ((tries * 0.618 + 0.25) % 1);
+      const clear = !bad.some((f) => s > f.a - 160 && s < f.b + 20) && !pick.some((f) => Math.abs(along(f.a) - along(s)) < 150);
+      if (clear) pick.push({ kind: 'drone', a: s, side: tries % 2 ? 1 : -1 });
+    }
+    while (pick.length < k) pick.push({ kind: 'drone', a: st + L * (pick.length + 0.5) / (k + 1), side: 1 });
+    for (const f of pick) if (f.kind === 'jump') f.side = this.clearSide((f.a + f.b) / 2, 20);
+    return pick.sort((x, y) => along(x.a) - along(y.a));
+  }
+
+  // a loop: its middle, which way it faces, and a side to watch it from
+  loopShot(i, j) {
+    const S = this.track.samples;
+    const c = new THREE.Vector3();
+    for (let k = i; k < j; k++) c.add(S[k].p);
+    c.divideScalar(j - i);
+    const a = S[i];
+    const lat = new THREE.Vector3(a.l.x, 0, a.l.z).normalize();
+    const side = this.clearSide(a.s, 36, c);
+    return { c, lat, fwd: new THREE.Vector3(a.t.x, 0, a.t.z).normalize(), side };
+  }
+
+  // which side of the road has the open view: lower ground, no other road
+  clearSide(s, d, from = null) {
+    const f = frameAt(this.track, s);
+    const base = from || f.p;
+    let best = 1, score = Infinity;
+    for (const side of [1, -1]) {
+      const p = _p.copy(base).addScaledVector(f.l, side * d);
+      let sc = Math.max(0, this.ground(p) - f.p.y);
+      for (let k = 0; k < this.track.samples.length; k += 6) {
+        const sm = this.track.samples[k];
+        if (Math.abs(sm.s - s) < 60) continue;
+        if (sm.p.distanceToSquared(p) < 16 * 16) sc += 40;
+      }
+      if (sc < score) { score = sc; best = side; }
+    }
     return best;
   }
 
-  // ---- camera ------------------------------------------------------------------
-  cam(pos, look, fov = 50) {
+  // which side of its car the camera stands: the outside of the grid
+  outSide(e) {
+    const sp = e.race.spawn;
+    const f = frameAt(this.track, sp.s ?? this.track.start.s);
+    return _p.copy(sp.pos).sub(f.p).dot(f.l) >= 0 ? 1 : -1;
+  }
+
+  ground(p) {
+    if (!this.terrain || this.theme.ground === 'void') return -Infinity;
+    return Math.max(this.terrain.meshHeightAt(p.x, p.z), this.water);
+  }
+
+  // keep the camera clear of the ground
+  above(p, m) {
+    const g = this.ground(p) + m;
+    if (p.y < g) p.y = g;
+    return p;
+  }
+
+  // a point by the road: s along it, x to the left, y up
+  at(s, x, y, out) {
+    const f = frameAt(this.track, s);
+    return out.copy(f.p).addScaledVector(f.l, x).addScaledVector(UP, y);
+  }
+
+  // ---- drawing a frame -------------------------------------------------------------
+  frame(T) {
+    const sh = this.shots.find((x) => T < x.t1) || this.shots[this.shots.length - 1];
+    const u = clamp((T - sh.t0) / Math.max(0.01, sh.t1 - sh.t0), 0, 1);
+    const d = sh.t1 - sh.t0;
+    if (sh !== this.cur) { this.cur = sh; this.cut(sh); }
+    const fog = this.app.renderer.scene.fog;
+    if (fog && this.fog && sh.kind !== 'aerial') { fog.near = this.fog.near; fog.far = this.fog.far; }
+    this[sh.kind](sh, u, d, T);
+    this.titleEl.classList.toggle('on', sh === this.shots[0] && T > 0.3 && T < sh.t1 - 0.35);
+    this.skipEl.classList.toggle('on', T > 1);
+    this.el.classList.toggle('settle', sh.kind === 'hero' && T > INTRO_LENGTH - SETTLE);
+  }
+
+  cut(sh) {
+    if (sh.kind === 'racer' || sh.kind === 'hero') this.cardEl.replaceChildren(this.card(sh.e, sh.kind === 'hero'));
+    else this.cardEl.replaceChildren();
+  }
+
+  cam(pos, look, fov) {
     const c = this.app.renderer.camera;
     c.position.copy(pos);
     c.up.set(0, 1, 0);
     c.lookAt(look);
-    c.fov = fov;
-    c.updateProjectionMatrix();
+    if (c.fov !== fov) { c.fov = fov; c.updateProjectionMatrix(); }
+    this.app.renderer.followShadow(look); // shadows where we're looking
   }
 
-  at(s, x, y) {
-    const f = frameAt(this.track, s);
-    return new THREE.Vector3().copy(f.p).addScaledVector(f.l, x).addScaledVector(f.n, y);
+  // the whole track from high up, turning slowly
+  aerial(sh, u, d) {
+    const b = this.track.bounds;
+    const c = _q.set((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2, (b.minZ + b.maxZ) / 2);
+    const R = Math.max(b.maxX - b.minX, b.maxZ - b.minZ) / 2;
+    const D = Math.min(2 * R + 40, 900) * (1.04 - 0.08 * u);
+    if (this.a0 == null) { const sp = this.track.start.p; this.a0 = Math.atan2(sp.x - c.x, sp.z - c.z); }
+    const a = this.a0 + u * d * 0.045;
+    const p = _p.set(c.x + Math.sin(a) * D * 0.78, c.y + D * 0.62, c.z + Math.cos(a) * D * 0.78);
+    const fog = this.app.renderer.scene.fog;
+    if (fog && this.fog) { fog.near = Math.max(this.fog.near, D * 0.8); fog.far = Math.max(this.fog.far, D * 2.4); }
+    this.cam(p, c, 40);
   }
 
-  // rolling along the grid, left of the cars, back row to front; it stops short
-  // of the gantry's post, easing in to the pole sitter
-  shotGrid(u) {
-    const st = this.track.start.s;
-    const back = gridSlot(this.track, 7).s - 6, front = st - 9.5;
-    const s0 = smoothstep(-0.3, 1, 0);
-    const s = lerp(back, front, (smoothstep(-0.3, 1, u) - s0) / (1 - s0));
-    this.cam(this.at(s, 10.5, lerp(2.1, 1.5, u)), this.at(s + 7, 0, 0.9), 44);
+  // a drone up the ramp and out over the gap, the landing ahead
+  jump(sh, u) {
+    const s = lerp(sh.a - 34, sh.a + 6, u);
+    const p = this.above(this.at(s, sh.side * 3, lerp(5, 9, u), _p), 3);
+    this.cam(p, this.at(sh.b + 12, 0, 0, _q), 54);
   }
 
-  direct(T, dt, lead) {
-    const tr = this.track;
-    const st = tr.start.s;
-    if (T < GREEN - 0.5) { this.shotGrid(T / (GREEN - 0.5)); return; }
-    if (T < GREEN + 0.9) {
-      // the start lights head-on, the grid behind them; at green the pack comes
-      // at the camera
-      const u = (T - (GREEN - 0.5)) / 1.4;
-      this.cam(this.at(st + 18 - u * 1.5, 0, 3.2 + u * 0.6), this.at(st, 0, 5.4 - u * 1.4), 50);
-      return;
-    }
-    const pack = this.centroid();
-    const dir = frameAt(tr, pack.s).t;
-    if (lead.prog.s < this.kickS - 25) {
-      // the launch: just behind the last car, the whole pack ahead of it
-      const u = clamp((T - GREEN - 0.9) / 1.5, 0, 1);
-      _v.copy(pack.tail).addScaledVector(dir, -8 - u * 4).add(_w.set(0, 2.2 + u * 1.2, 0));
-      this.cam(_v, _c.copy(pack.p).addScaledVector(dir, 12).add(_w.set(0, 0.6, 0)), 58);
-      return;
-    }
-    if (!this.cars.some((e) => e.prog.s > this.landS + 25) && T < 11.4) {
-      // the jump: low beside the gap, panning with the pack as it flies past
-      const mid = (this.kickS + this.landS) / 2;
-      const want = _c.copy(lead.model.group.position).lerp(pack.p, 0.35);
-      if (!this.jumpLook) this.jumpLook = want.clone();
-      this.jumpLook.lerp(want, 1 - Math.exp(-dt * 6));
-      this.cam(this.at(mid - 4, 15, -0.5), this.jumpLook, 42);
-      return;
-    }
-    // over the top and back as the logo lands
-    this.aerial = (this.aerial || 0) + dt;
-    const u = clamp(this.aerial / 3, 0, 1);
-    _v.copy(pack.p).addScaledVector(dir, -26 - u * 22).add(_w.set(0, 9 + u * 16, 0));
-    this.cam(_v, _c.copy(pack.p).addScaledVector(dir, 20), 56);
+  // side-on to a loop, drifting past it
+  loop(sh, u) {
+    const p = _p.copy(sh.c).addScaledVector(sh.lat, sh.side * 38).addScaledVector(sh.fwd, lerp(-12, 12, u));
+    p.y = sh.c.y - 2;
+    this.above(p, 2);
+    this.cam(p, sh.c, 46);
   }
 
-  centroid() {
-    const p = new THREE.Vector3();
-    let n = 0, s = 0, tail = null;
-    const lead = this.leader().prog.s;
-    for (const e of this.cars) {
-      if (lead - e.prog.s > 60) continue; // stragglers don't pull the shot back
-      p.add(e.model.group.position);
-      s += e.prog.s;
-      n++;
-      if (!tail || e.prog.s < tail.prog.s) tail = e;
+  // down the road into a tunnel
+  tunnel(sh, u) {
+    this.cam(this.above(this.at(sh.a - lerp(40, 22, u), 0, 3.4, _p), 2), this.at(sh.a + 12, 0, 2.2, _q), 50);
+  }
+
+  // a drone run along the road
+  drone(sh, u, d) {
+    const s = sh.a + u * d * 26;
+    this.cam(this.above(this.at(s, sh.side * 5, 9, _p), 4), this.at(s + 42, 0, 1.2, _q), 55);
+  }
+
+  // over the start and back along the grid, the cars' noses below
+  approach(sh, u) {
+    const e = smoothstep(0, 1, u) * 0.85 + u * 0.15;
+    const s = lerp(this.track.start.s + 34, this.gridBack - 2, e);
+    this.cam(this.at(s, 0, lerp(20, 8.5, e), _p), this.at(s - 24, 0, 0.5, _q), 52);
+  }
+
+  // the car's position, forward and outward (away from the middle of the grid)
+  pose(e, side) {
+    const g = e.model.group;
+    _f.set(0, 0, 1).applyQuaternion(g.quaternion).setY(0).normalize();
+    _l.set(_f.z, 0, -_f.x).multiplyScalar(side);
+    return g.position;
+  }
+
+  // one racer, three ways of looking at them (none looks down the grid at the
+  // start: its gantry and glow fill the frame)
+  racer(sh, u) {
+    const c = this.pose(sh.e, sh.side);
+    const p = _p.copy(c), look = _q.copy(c).addScaledVector(UP, 0.5);
+    let fov;
+    switch (sh.style) {
+      case 0: // front three-quarter, low, drifting round
+        p.addScaledVector(_f, lerp(6.2, 5.2, u)).addScaledVector(_l, lerp(3.2, 4.4, u)).addScaledVector(UP, 0.95); fov = 36; break;
+      case 1: // alongside, tail to nose
+        p.addScaledVector(_l, 6.6).addScaledVector(_f, lerp(-2.8, 2.8, u)).addScaledVector(UP, 1.25);
+        look.addScaledVector(_f, lerp(-0.6, 0.6, u)); fov = 34; break;
+      default: // low off the front corner, pushing in (clear of the car ahead)
+        p.addScaledVector(_f, lerp(5.4, 4.6, u)).addScaledVector(_l, 3.3).addScaledVector(UP, 0.45); fov = 34; break;
     }
-    return { p: p.divideScalar(Math.max(1, n)), s: s / Math.max(1, n), tail: (tail || this.cars[0]).model.group.position };
+    this.cam(p, look, fov);
+  }
+
+  // you: round the front of your car, then down behind it into the chase camera
+  hero(sh, u, d, T) {
+    const c = this.pose(sh.e, sh.side);
+    const orbit = d - SETTLE;
+    const k = smoothstep(0, 1, (T - (INTRO_LENGTH - SETTLE)) / SETTLE);
+    const a = k > 0 ? lerp(1.45, Math.PI, k) : lerp(0.55, 1.45, clamp((u * d) / orbit, 0, 1));
+    const r = lerp(6.4, 6.8, k), y = lerp(1.05, 2.1, k);
+    const p = _p.copy(c).addScaledVector(_f, Math.cos(a) * r).addScaledVector(_l, Math.sin(a) * r).addScaledVector(UP, y);
+    const look = _q.copy(c).addScaledVector(UP, 0.6);
+    let fov = 40;
+    if (k > 0) {
+      if (!this.chase) this.chase = this.chasePose();
+      p.lerp(this.chase.pos, k * k);
+      look.lerp(this.chase.look, k);
+      fov = lerp(40, this.chase.fov, k);
+    }
+    this.cam(p, look, fov);
+  }
+
+  // where the race camera will be once we let go
+  chasePose() {
+    const s = this.s, cam = s.camera;
+    cam.setMode(this.app.settings.camera || 'chase');
+    cam.snap(s._camTarget(s.focus));
+    const pose = { pos: cam.pos.clone(), look: cam.look.clone(), fov: cam.camera.fov };
+    cam.setMode('script');
+    return pose;
   }
 
   // ---- words on screen -------------------------------------------------------------
-  overlays(T) {
-    // one name card per car as the grid rolls by
-    const span = GREEN - 0.6;
-    const k = Math.floor((T / span) * this.order.length);
-    if (T < span && k !== this.cardK && k < this.order.length) {
-      this.cardK = k;
-      const e = this.order[k];
-      const body = BODIES[e.custom.body];
-      const card = h('div.in-name', { style: { '--c': e.custom.paint } }, h('b', (body?.name || e.name).toUpperCase()), h('span', body?.blurb || ''));
-      this.cardEl.replaceChildren(card);
-    }
-    if (T >= span && this.cardK !== -1) { this.cardK = -1; this.cardEl.replaceChildren(); }
-    if (T > 0.8) this.skipEl.classList.add('on');
-    // the logo slams in once the pack has landed
-    if (!this.logoShown && (this.aerial > 0.25 || T > 11.8)) { this.logoShown = true; this.logoEl.classList.add('on'); this.app.audio.play('slam'); }
+  titleCard() {
+    const s = this.s, tr = this.track;
+    const len = tr.closed ? tr.length : tr.finish.s - tr.start.s;
+    const racers = this.order.length + (this.player ? 1 : 0);
+    const bits = [this.theme?.name, tr.closed ? `${s.laps} laps` : 'Sprint', (len / 1000).toFixed(1) + ' km', `${racers} racers`];
+    this.titleEl.replaceChildren(h('b', s.opts.def.name), h('span', bits.filter(Boolean).join(' · ')));
   }
 
-  dispose() {
-    this.state = 'end';
-    window.removeEventListener('pointerdown', this._input);
-    window.removeEventListener('keydown', this._input);
-    this.app.audio.stopIntro(0.3);
-    this.el.remove();
+  card(e, you) {
+    const c = e.custom || {};
+    const body = BODIES[c.body];
+    const name = (e.name || 'Racer').replace(/\s*\(AI\)$/, '');
+    const what = [e.kind === 'bot' ? 'AI' : null, body?.name, c.showNumber !== false && c.number != null ? '#' + c.number : null];
+    return h('div.in-name' + (you ? '.you' : ''), { style: { '--c': c.paint || '#39c6f0' } },
+      h('div.in-pos', 'P' + (e.slot + 1)),
+      h('div.in-who', you ? h('em', 'YOU') : null, h('b', name.toUpperCase()), h('span', what.filter(Boolean).join(' · ').toUpperCase())));
   }
 }
-
-const NO_INPUT = { throttle: 0, brake: 0, steer: 0, handbrake: 0, analog: false, lookBack: false };

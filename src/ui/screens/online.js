@@ -165,7 +165,7 @@ export class LobbyScreen {
     if (net.isHost) {
       const mine = library().filter((d) => d.routeOk !== false);
       const sel = h('select.track-select',
-        h('optgroup', { label: 'PolyTrack tracks' }, ...TRACKS.map((t, i) => h('option', { value: t.id, selected: t.id === s.trackId }, `${String(i + 1).padStart(2, '0')}  ${t.name}`))),
+        h('optgroup', { label: 'PolyTrack Pro tracks' }, ...TRACKS.map((t, i) => h('option', { value: t.id, selected: t.id === s.trackId }, `${String(i + 1).padStart(2, '0')}  ${t.name}`))),
         mine.length ? h('optgroup', { label: 'My tracks' }, ...mine.map((t) => h('option', { value: 'lib:' + t.slot, selected: t.id === s.trackId }, t.name))) : null);
       sel.addEventListener('change', () => net.setSetting('trackId', sel.value.startsWith('lib:') ? mine.find((t) => 'lib:' + t.slot === sel.value) : sel.value));
       const opts = h('div.opts',

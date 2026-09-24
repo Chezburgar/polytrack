@@ -1,4 +1,4 @@
-// The 20 PolyTrack courses. Each layout is a list of pieces (grammar in
+// The 20 PolyTrack Pro courses. Each layout is a list of pieces (grammar in
 // builder.js). laps: 0 = sprint (start -> finish), >0 = circuit. Circuits close
 // automatically through their two "S ?" straights.
 // difficulty: 0 easy, 1 medium, 2 hard, 3 expert.
@@ -171,7 +171,7 @@ export const TRACKS = [
   },
   {
     id: 'grand-finale', name: 'Grand Finale', theme: 'dusk', laps: 0, difficulty: 3,
-    blurb: 'Everything PolyTrack has, in one run at sunset.',
+    blurb: 'Everything PolyTrack Pro has, in one run at sunset.',
     pieces: [
       'S 70', 'S 40 boost', 'R 60 r60 b10', 'S 65 u8', 'K 12 a12', 'J 30 d4', 'S 60 cp', 'L 90 r40 b10',
       'S 40 tunnel', 'S 40 tunnel', 'R 90 r40 tunnel', 'S 50 boost', 'LOOP r12', 'S 60 cp', 'L 45 r60',

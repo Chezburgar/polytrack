@@ -1,18 +1,13 @@
 // Audio: engines, tyres, wind and effects are synthesised with WebAudio (races
-// only - the menu backdrop is silent apart from the music); the
-// menu song streams from a file (the old step-sequencer tune stays as a
-// fallback if the file can't load). The context starts on the first user
-// gesture (autoplay rules).
+// only - the menu backdrop is silent apart from the music); the menu song and
+// the pre-race intro's song stream from files (the old step-sequencer tune stays
+// as a fallback if the menu song can't load). The context starts on the first
+// user gesture (autoplay rules).
 import { clamp } from '../util/math.js';
 
 const NOTE = (n) => 440 * Math.pow(2, (n - 69) / 12);
-// The menu plays these in turn. The intro plays menu 2 from just before it lifts
-// (at 21 s, as the lights go green); the menu then starts on the other one.
-const MUSIC_FILES = [
-  { url: 'assets/audio/menu-music.mp3' },
-  { url: 'assets/audio/menu-2.mp3', intro: 16 },
-];
-const INTRO_SONG = MUSIC_FILES.findIndex((m) => m.intro != null);
+const MENU_SONG = 'assets/audio/menu-music.mp3';
+const INTRO_SONG = 'assets/audio/menu-2.mp3'; // the pre-race intro's, never the menu's
 const SONG_GAIN = 0.5; // the files are mastered loud; this sits them under the engines
 
 export class AudioEngine {
@@ -181,7 +176,7 @@ export class AudioEngine {
       L.upX.setTargetAtTime(cam.up.x, t, 0.02); L.upY.setTargetAtTime(cam.up.y, t, 0.02); L.upZ.setTargetAtTime(cam.up.z, t, 0.02);
     }
     const focus = session.focus;
-    const menu = session.mode === 'demo' || session.mode === 'intro';
+    const menu = session.mode === 'demo';
     const want = new Map();
     // the menu backdrop is silent (just the music); in a race: your car plus the nearest others
     if (menu) { for (const [id, v] of this.engines) { this._killVoice(v); this.engines.delete(id); } return; }
@@ -348,15 +343,9 @@ export class AudioEngine {
   _songEl() {
     if (this.song) return this.song;
     const el = new Audio();
-    if (this.songIdx == null) this.songIdx = Math.floor(Math.random() * MUSIC_FILES.length);
-    el.src = MUSIC_FILES[this.songIdx].url;
+    el.src = MENU_SONG;
+    el.loop = true;
     el.preload = 'auto';
-    // one song after another
-    el.addEventListener('ended', () => {
-      this.songIdx = (this.songIdx + 1) % MUSIC_FILES.length;
-      el.src = MUSIC_FILES[this.songIdx].url;
-      if (this.musicTrack === 'menu') el.play().catch(() => {});
-    });
     this.songGain = this.ctx.createGain();
     this.songGain.gain.value = 0;
     this.ctx.createMediaElementSource(el).connect(this.songGain).connect(this.music);
@@ -388,46 +377,42 @@ export class AudioEngine {
     this._songPause = setTimeout(() => this.song.pause(), 1400);
   }
 
-  // ---- intro ------------------------------------------------------------------------
-  // Starts loading the intro song, cued to its intro point, while the "click to
-  // start" card is up (no audio context is needed to load).
+  // ---- pre-race intro --------------------------------------------------------------
+  // Starts loading the intro song (no audio context is needed to load), so it can
+  // start the moment the intro does.
   prepIntro() {
-    const i = (this.introIdx = INTRO_SONG);
-    const el = (this.introEl = this.introEl || new Audio());
-    const at = MUSIC_FILES[i].intro;
-    el.preload = 'auto';
-    el.src = MUSIC_FILES[i].url;
-    const cue = () => { if (Math.abs(el.currentTime - at) > 0.3) el.currentTime = at; };
-    if (el.readyState >= 1) cue(); else el.addEventListener('loadedmetadata', cue, { once: true });
-    return i;
+    if (this.introEl) return;
+    this.introEl = new Audio();
+    this.introEl.preload = 'auto';
+    this.introEl.src = INTRO_SONG;
   }
 
-  // Plays the intro song (see prepIntro); returns its index. The menu then
-  // starts on the other one.
-  playIntro() {
-    if (!this.ready) return -1;
-    this.setMusic(null);
-    if (this.introIdx == null) this.prepIntro();
-    const i = this.introIdx;
+  // Plays the intro song from `at` seconds in. False if there's no sound yet.
+  playIntro(at = 0) {
+    if (!this.ready) return false;
+    this.prepIntro();
     const el = this.introEl;
     if (!this.introGain) {
       this.introGain = this.ctx.createGain();
       this.ctx.createMediaElementSource(el).connect(this.introGain).connect(this.music);
     }
+    clearTimeout(this._introStop);
+    this.introCue = at;
+    const seek = () => { if (Math.abs(el.currentTime - at) > 0.25) el.currentTime = at; };
+    if (el.readyState >= 1) seek(); else el.addEventListener('loadedmetadata', seek, { once: true });
     const t = this.ctx.currentTime;
     this.introGain.gain.cancelScheduledValues(t);
     this.introGain.gain.setValueAtTime(0.0001, t);
-    this.introGain.gain.exponentialRampToValueAtTime(SONG_GAIN * 1.15, t + 0.25);
+    this.introGain.gain.exponentialRampToValueAtTime(SONG_GAIN * 1.15, t + 0.4);
     el.play().catch(() => {});
-    this.songIdx = (i + 1) % MUSIC_FILES.length; // the menu continues with the other song
-    return i;
+    return true;
   }
 
   // seconds of the intro song played since its cue, or null until it's playing
   introTime() {
     const el = this.introEl;
-    if (!el || el.paused || el.seeking || el.readyState < 3 || this.introIdx == null) return null;
-    return el.currentTime - MUSIC_FILES[this.introIdx].intro;
+    if (!el || el.paused || el.seeking || el.readyState < 3 || this.introCue == null) return null;
+    return el.currentTime - this.introCue;
   }
 
   // fade the intro song out over `secs`
