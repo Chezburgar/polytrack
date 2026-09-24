@@ -7,7 +7,12 @@ import { clamp } from '../util/math.js';
 
 const NOTE = (n) => 440 * Math.pow(2, (n - 69) / 12);
 const MENU_SONG = 'assets/audio/menu-music.mp3';
-const INTRO_SONG = 'assets/audio/menu-2.mp3'; // the pre-race intro's, never the menu's
+// The pre-race intro plays one of these (never the menu), a different one from
+// last time, cued so the moment it drops (s into the song) lands on the first racer.
+export const INTRO_SONGS = [
+  { url: 'assets/audio/menu-2.mp3', drop: 21 },
+  { url: 'assets/audio/prerace-2.mp3', drop: 30 }, // the build that peaks at 31 s
+];
 const SONG_GAIN = 0.5; // the files are mastered loud; this sits them under the engines
 
 export class AudioEngine {
@@ -378,19 +383,27 @@ export class AudioEngine {
   }
 
   // ---- pre-race intro --------------------------------------------------------------
-  // Starts loading the intro song (no audio context is needed to load), so it can
-  // start the moment the intro does.
+  // Picks the next intro song - at random, never the one from last time - and
+  // starts loading it (no audio context is needed to load), so it can start the
+  // moment the intro does. Returns it; `introSong` has it too.
   prepIntro() {
-    if (this.introEl) return;
-    this.introEl = new Audio();
-    this.introEl.preload = 'auto';
-    this.introEl.src = INTRO_SONG;
+    const n = INTRO_SONGS.length, last = this.introIdx;
+    let i = Math.floor(Math.random() * (n > 1 && last != null ? n - 1 : n));
+    if (n > 1 && last != null && i >= last) i++;
+    this.introIdx = i;
+    if (!this.introEl) { this.introEl = new Audio(); this.introEl.preload = 'auto'; }
+    const url = INTRO_SONGS[i].url;
+    if (!this.introEl.src.endsWith(url)) this.introEl.src = url;
+    return INTRO_SONGS[i];
   }
 
-  // Plays the intro song from `at` seconds in. False if there's no sound yet.
+  get introSong() { return this.introIdx != null ? INTRO_SONGS[this.introIdx] : null; }
+
+  // Plays the intro song picked by prepIntro from `at` seconds in. False if
+  // there's no sound yet.
   playIntro(at = 0) {
     if (!this.ready) return false;
-    this.prepIntro();
+    if (!this.introSong) this.prepIntro();
     const el = this.introEl;
     if (!this.introGain) {
       this.introGain = this.ctx.createGain();

@@ -17,7 +17,7 @@ npm start       # http://localhost:5180
 It also runs from GitHub Pages or any static host as-is.
 
 **Pre-race intro.** Races against other cars open with 30 seconds of TV-style
-build-up to its own song: a flyover of the track (its name, then its jumps, loops
+build-up to one of the intro songs (a different one from last time): a flyover of the track (its name, then its jumps, loops
 and tunnels), then the camera finds every racer on the grid, back row first, and
 names them - the song drops on the first - and ends on your car, settling into
 the chase camera as the countdown starts. Space, Esc, a click or the pad's A
@@ -157,7 +157,7 @@ src/car       procedural car bodies, liveries, presets
 src/net       PeerJS / BroadcastChannel transports, room + race protocol
 src/ui        screens (incl. the track builder), HUD, chat, touch controls, styles
 src/core      input, audio (synthesised engines/tyres/effects, menu and intro songs)
-assets/audio  the menu song (menu-music.mp3) and the pre-race intro's (menu-2.mp3)
+assets/audio  the menu song (menu-music.mp3) and the pre-race intro's (menu-2.mp3, prerace-2.mp3)
 ```
 
 Everything visual is generated in code, and so is every sound except the two

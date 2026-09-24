@@ -1,9 +1,10 @@
 // The pre-race intro: 30 seconds before a race against other cars. The camera
-// flies over the track - its name, then its jumps, loops and tunnels - while
-// menu 2 builds; then it finds each racer on the grid, back row first, and names
-// them (the song drops on the first); it ends on your car and settles into the
-// chase camera as the countdown starts. Space, Esc, a click or the pad's A skips
-// it. Online it runs on the host's clock: the start is pushed back to fit it.
+// flies over the track - its name, then its jumps, loops and tunnels - while one
+// of the intro songs builds; then it finds each racer on the grid, back row
+// first, and names them (the song drops on the first); it ends on your car and
+// settles into the chase camera as the countdown starts. Space, Esc, a click or
+// the pad's A skips it. Online it runs on the host's clock: the start is pushed
+// back to fit it.
 import * as THREE from 'three';
 import { frameAt, gridSlot } from '../track/geometry.js';
 import { BODIES } from '../car/bodies.js';
@@ -11,7 +12,6 @@ import { h } from '../ui/dom.js';
 import { clamp, smoothstep, lerp } from '../util/math.js';
 
 export const INTRO_LENGTH = 30;
-const DROP = 21; // menu 2 drops 21 s in
 const HERO = 4.2; // your car: a turn around it, then down into the chase camera
 const SETTLE = 1.6; // the last part of that
 const UP = new THREE.Vector3(0, 1, 0);
@@ -46,7 +46,7 @@ export class RaceIntro {
     const n = this.order.length;
     this.per = n ? clamp(15.5 / n, 2.2, 4) : 0;
     this.fly = INTRO_LENGTH - HERO - n * this.per; // the flyover takes the rest
-    this.cue = Math.max(0, DROP - this.fly); // so the song drops on the first racer
+    this.cue = Math.max(0, (app.audio.introSong?.drop ?? 21) - this.fly); // the song drops on the first racer
     this.terrain = session.loaded.terrain;
     this.theme = session.loaded.theme;
     this.water = this.theme.ground === 'water' || this.theme.ground === 'lava' ? -1.2 : -Infinity;
