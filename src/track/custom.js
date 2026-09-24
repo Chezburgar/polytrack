@@ -9,6 +9,7 @@ import { parsePiece, buildTrack } from './builder.js';
 import { THEMES } from './themes.js';
 import { load, save } from '../util/storage.js';
 import { hashString, clamp, DEG } from '../util/math.js';
+import { solveRoute, routeDef, packBlock, unpackBlock, blockCells, cellKey, LIMITS as BLIMITS } from './blocks.js';
 
 export const LIMITS = {
   pieces: 120, // user pieces (the closing section is extra)
@@ -133,6 +134,7 @@ function layoutKey(d) {
 // Clean an untrusted definition into a safe one, or throw with a reason.
 export function sanitize(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Not a track.');
+  if (Array.isArray(raw.blocks)) return sanitizeBlocks(raw);
   if (!Array.isArray(raw.pieces) || !raw.pieces.length) throw new Error('The track has no pieces.');
   if (raw.pieces.length > LIMITS.pieces + 4) throw new Error(`Too many pieces (max ${LIMITS.pieces}).`);
   const def = {
@@ -165,6 +167,46 @@ export function sanitize(raw) {
     if (m.author && m.gold && m.silver && m.bronze) def.medals = m;
   }
   return finalize(def);
+}
+
+// ---- block tracks (the 3D track builder) ---------------------------------------------
+// The blocks are the source; the route pieces are always worked out again from
+// them, never taken from outside.
+function cleanMeta(raw) {
+  const meta = {
+    name: String(raw.name ?? 'Custom track').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, LIMITS.name) || 'Custom track',
+    author: raw.author ? String(raw.author).replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 16) : undefined,
+    theme: THEME_IDS.includes(raw.theme) ? raw.theme : 'meadow',
+    laps: Math.round(num(raw.laps, 1, 9, 3)),
+    difficulty: Math.round(num(raw.difficulty, 0, 3, 1)),
+  };
+  if (raw.medals && typeof raw.medals === 'object') {
+    const m = {};
+    for (const k of ['author', 'gold', 'silver', 'bronze']) { const v = +raw.medals[k]; if (Number.isFinite(v) && v > 1000 && v < 3600e3) m[k] = Math.round(v); }
+    if (m.author && m.gold && m.silver && m.bronze) meta.medals = m;
+  }
+  return meta;
+}
+
+function sanitizeBlocks(raw) {
+  if (raw.blocks.length > BLIMITS.blocks) throw new Error(`Too many blocks (max ${BLIMITS.blocks}).`);
+  const blocks = raw.blocks.map(unpackBlock);
+  if (blocks.some((b) => !b)) throw new Error('A block is not valid.');
+  const occ = new Map();
+  for (const b of blocks) for (const [x, y, z] of blockCells(b)) { const k = cellKey(x, y, z); if (occ.has(k)) throw new Error('Two blocks overlap.'); occ.set(k, 1); }
+  return blockDef(cleanMeta(raw), blocks);
+}
+
+// meta + blocks -> a full definition (route pieces, start placement, id)
+export function blockDef(meta, blocks) {
+  const route = solveRoute(blocks);
+  const packed = blocks.map(packBlock);
+  const def = { ...meta, ...routeDef(meta, blocks, route), blocks: packed, custom: true, routeOk: route.ok };
+  if (!route.ok) def.laps = 0;
+  if (!def.author) delete def.author;
+  if (!def.medals) delete def.medals;
+  def.id = 'b-' + hashString(JSON.stringify([meta.theme, route.closed ? meta.laps : 0, packed])).toString(36);
+  return def;
 }
 
 // road width at the start of every piece, exactly as the builder works it out
@@ -374,7 +416,7 @@ function pieceFromStringSafe(s) { try { return pieceFromString(s); } catch { ret
 // The definition the builder and the race get: circuits gain their closing
 // section (written precisely).
 export function buildDef(def) {
-  if (def._built) return def;
+  if (def._built || def.blocks) return def._built ? def : { ...def, _built: true };
   const out = { ...def, _built: true };
   if (def.laps > 0) out.pieces = def.pieces.concat(closingStrings(def));
   return out;
@@ -398,29 +440,24 @@ export function library() {
 export function saveToLibrary(def) {
   const list = library();
   const slot = def.slot || 's' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
-  const entry = { ...stripDerived(def), slot, updated: Date.now() };
+  const entry = { ...shareable(def), slot, updated: Date.now() };
   const i = list.findIndex((d) => d.slot === slot);
-  if (i >= 0) list[i] = entry; else list.unshift(entry);
-  save(KEY, list.map(stripDerived2));
-  return { ...finalize(stripDerived(entry)), slot, updated: entry.updated };
+  const stored = list.map((d) => ({ ...shareable(d), slot: d.slot, updated: d.updated }));
+  if (i >= 0) stored[i] = entry; else stored.unshift(entry);
+  save(KEY, stored);
+  return { ...sanitize(entry), slot, updated: entry.updated };
 }
 
 export function deleteFromLibrary(slot) {
-  save(KEY, library().filter((d) => d.slot !== slot).map(stripDerived2));
+  save(KEY, library().filter((d) => d.slot !== slot).map((d) => ({ ...shareable(d), slot: d.slot, updated: d.updated })));
 }
 
-function stripDerived(d) {
-  const { id, custom, slot, updated, ...rest } = d;
-  void id; void custom; void slot; void updated;
-  return rest;
-}
-function stripDerived2(d) { return { ...stripDerived(d), slot: d.slot, updated: d.updated }; }
 
 // ---- sharing ---------------------------------------------------------------------
 // Share code: "PT1." + base64url(deflate(json)); falls back to plain base64url
 // ("PT0.") where CompressionStream is missing.
 export async function encodeShare(def) {
-  const json = JSON.stringify(stripDerived(def));
+  const json = JSON.stringify(shareable(def));
   const bytes = new TextEncoder().encode(json);
   if (typeof CompressionStream === 'function') {
     const z = await streamBytes(bytes, new CompressionStream('deflate-raw'));
@@ -490,6 +527,12 @@ function unb64url(s) {
 
 // the part of a definition worth sending to someone else
 export function shareable(def) {
+  if (def.blocks) {
+    const out = { name: def.name, author: def.author, theme: def.theme, laps: def.laps || 3, difficulty: def.difficulty, blocks: def.blocks.map((a) => a.slice()) };
+    if (def.medals) out.medals = { ...def.medals };
+    if (!out.author) delete out.author;
+    return out;
+  }
   const out = { name: def.name, author: def.author, theme: def.theme, laps: def.laps, width: def.width, walls: def.walls, difficulty: def.difficulty, pieces: def.pieces.slice(0, LIMITS.pieces) };
   if (def._built && def.laps > 0) out.pieces = def.pieces.slice(0, def.pieces.length - closingCount(def));
   if (def.medals) out.medals = { ...def.medals };

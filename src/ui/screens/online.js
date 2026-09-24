@@ -163,7 +163,7 @@ export class LobbyScreen {
       trackRow.append(button(have ? 'In your tracks' : 'Save to my tracks', (e) => { saveToLibrary({ ...def, slot: undefined }); e.currentTarget.textContent = 'Saved'; e.currentTarget.disabled = true; this.ui.toast(`Saved "${def.name}" to your tracks`); }, 'small', { disabled: have }));
     }
     if (net.isHost) {
-      const mine = library();
+      const mine = library().filter((d) => d.routeOk !== false);
       const sel = h('select.track-select',
         h('optgroup', { label: 'PolyTrack tracks' }, ...TRACKS.map((t, i) => h('option', { value: t.id, selected: t.id === s.trackId }, `${String(i + 1).padStart(2, '0')}  ${t.name}`))),
         mine.length ? h('optgroup', { label: 'My tracks' }, ...mine.map((t) => h('option', { value: 'lib:' + t.slot, selected: t.id === s.trackId }, t.name))) : null);

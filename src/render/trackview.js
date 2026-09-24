@@ -53,7 +53,9 @@ export function buildTrackView(geo, theme) {
       const lm = new THREE.MeshBasicMaterial({ color: 0x2a0a0a });
       const lamp = new THREE.Mesh(lampGeo, lm);
       lamp.position.copy(p).addScaledVector(start.fwd, -0.28);
-      group.add(h, lamp);
+      const front = new THREE.Mesh(lampGeo, lm); // same material, so it follows
+      front.position.copy(p).addScaledVector(start.fwd, 0.28);
+      group.add(h, lamp, front);
       lights.push(lamp);
     }
   }

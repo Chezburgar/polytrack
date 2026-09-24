@@ -43,6 +43,13 @@ export class ChaseCamera {
   }
 
   setMode(m) { this.mode = m; }
+
+  // the finish: swoop round to the front of the car and orbit it slowly
+  startFinish(t, side = 1) {
+    const yaw = Math.atan2(t.fwd.x, t.fwd.z);
+    this.fin = { t: 0, ang: yaw + side * 0.75, side };
+    this.mode = 'finish';
+  }
   cycle() { const i = CAMERA_MODES.indexOf(this.mode); this.mode = CAMERA_MODES[(i + 1) % CAMERA_MODES.length]; return this.mode; }
 
   snap(target) { this.initialised = false; this.update(target, 1 / 60); }
@@ -50,6 +57,7 @@ export class ChaseCamera {
   // target: { pos, quat, vel, up, fwd, boost, grounded, road: {p,t,n,l} | null }
   update(t, dt, world = null, lookBack = false) {
     const cam = this.camera;
+    if (this.mode === 'script') return; // someone else (the intro) is holding the camera
     if (this.mode === 'orbit') {
       this.orbit.angle += this.orbit.speed * dt;
       const o = this.orbit;
@@ -61,6 +69,24 @@ export class ChaseCamera {
       cam.lookAt(t.pos.x, t.pos.y + 0.6, t.pos.z);
       cam.fov = 50;
       cam.updateProjectionMatrix();
+      return;
+    }
+    if (this.mode === 'finish') {
+      const f = this.fin;
+      f.t += dt;
+      const ang = f.ang + f.side * f.t * 0.3;
+      const R = 8.5 + f.t * 0.9, H = 1.6 + f.t * 0.45;
+      _v.set(t.pos.x + Math.sin(ang) * R, t.pos.y + H, t.pos.z + Math.cos(ang) * R);
+      this.pos.lerp(_v, 1 - Math.exp(-dt * (f.t < 0.8 ? 3.5 : 7)));
+      _w.copy(t.pos).y += 0.7;
+      this.look.lerp(_w, 1 - Math.exp(-dt * 10));
+      this.up.lerp(WORLD_UP, 1 - Math.exp(-dt * 6)).normalize();
+      this.fov = damp(this.fov, 58, 3, dt);
+      cam.fov = this.fov;
+      cam.updateProjectionMatrix();
+      cam.position.copy(this.pos);
+      cam.up.copy(this.up);
+      cam.lookAt(this.look);
       return;
     }
     const p = PRESETS[this.mode];

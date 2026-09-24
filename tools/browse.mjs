@@ -1,5 +1,6 @@
 // Drives the game in real Chrome via puppeteer-core for verification.
 // Usage: node tools/browse.mjs <script.mjs> [--headful] [--url=/?dev | --url=https://...]
+// With no --url it opens /?nointro (straight to the menu); --url=/ plays the intro.
 // The script default-exports async (page, h) => {...}; h.shot(name) saves
 // .shots/<name>.png, h.eval(fn, ...args) runs in the page, h.sleep(ms).
 import puppeteer from 'puppeteer-core';
@@ -11,7 +12,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const scriptPath = args.find((a) => !a.startsWith('--'));
 const headful = args.includes('--headful');
-const urlArg = (args.find((a) => a.startsWith('--url=')) || '--url=/').slice(6);
+const urlArg = (args.find((a) => a.startsWith('--url=')) || '--url=/?nointro').slice(6);
 const size = (args.find((a) => a.startsWith('--size=')) || '--size=1280x720').slice(7).split('x').map(Number);
 const port = Number(process.env.PORT || 5180);
 const chrome = process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe';

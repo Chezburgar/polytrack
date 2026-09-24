@@ -18,6 +18,7 @@ import { frameAt } from '../track/geometry.js';
 import { clamp } from '../util/math.js';
 import { TrackLimits, missedGate } from './rules.js';
 import { collideCars } from '../physics/contact.js';
+import { finishDrift, finishSettle } from './finish.js';
 
 export const DT = 1 / 120;
 const COUNT_RACE = 3.0;
@@ -53,6 +54,8 @@ export class Session {
     this.paused = false;
     this.spectate = null;
     this.startAt = null; // wall-clock start for online races
+    this.timeScale = 1; // slow motion for the finish (single player only)
+    this.slowmo = null;
     this.loadMs = performance.now() - t0;
 
     let slot = 0;
@@ -141,6 +144,14 @@ export class Session {
     dt = Math.min(dt, 0.1);
     this.clock += dt;
     if (this.paused) { this._render(0, dt); return; }
+    if (this.slowmo) {
+      this.slowmo.t += dt;
+      const k = Math.min(1, Math.max(0, (this.slowmo.t - 0.7) / 1.4));
+      this.timeScale = 0.3 + 0.7 * k * k;
+      if (k >= 1) { this.slowmo = null; this.timeScale = 1; }
+    }
+    const renderDt = dt;
+    dt *= this.timeScale;
     // online races start on the host's clock
     if (this.state === 'countdown' && this.startAt != null) {
       const now = this.app.net?.now() ?? performance.now();
@@ -163,7 +174,7 @@ export class Session {
       steps++;
     }
     if (steps >= maxSteps) this.acc = 0;
-    this._render(this.acc / DT, dt, input);
+    this._render(this.acc / DT, renderDt, input);
   }
 
   _fixed(dt, input) {
@@ -202,6 +213,9 @@ export class Session {
           const s = e.kind === 'player' ? input : null;
           car.input.throttle = 0; car.input.brake = 0; car.input.hold = true; car.input.steer = s ? s.steer : 0; car.input.handbrake = 0;
           e.rev = s ? s.throttle : 0;
+        } else if (e.finishFx) {
+          car.input.hold = false;
+          finishDrift(car, e.finishFx, dt);
         } else if (e.kind === 'player' && !e.race.finished && !this.autopilot) {
           car.input.hold = false;
           car.input.throttle = input.throttle; car.input.brake = input.brake; car.input.steer = input.steer;
@@ -238,6 +252,7 @@ export class Session {
       if (!car) continue;
       e.prog.update(car.pos);
       const sm = this.track.samples[e.prog.index];
+      if (e.finishFx) finishSettle(car, e.finishFx, dt, sm);
       if (sm.boost && Math.abs(e.prog.vert) < 1.6 && Math.abs(e.prog.lat) < sm.hw - 1) {
         if (car.boost < 0.2) { this.emit('boost', { id: e.id }); }
         car.boost = Math.max(car.boost, 1.35);
@@ -401,7 +416,15 @@ export class Session {
     } else if (ev.kind === 'finish') {
       this.emit('otherFinish', { id: e.id, time: ev.time });
     }
-    if (ev.kind === 'finish') e.finishTime = ev.time;
+    if (ev.kind === 'finish') {
+      e.finishTime = ev.time;
+      // slide to a stop, nose swinging toward the middle of the road
+      if (e.car) e.finishFx = { t: 0, side: e.prog.lat > 0 ? -1 : 1 };
+      if (e === this.focus && this.mode !== 'demo') {
+        this.camera.startFinish(this._camTarget(e), e.finishFx?.side || 1);
+        if (this.mode !== 'online') this.slowmo = { t: 0 };
+      }
+    }
   }
 
   // Track limits: off the road a 3 s clock runs (the HUD shows it) and you're

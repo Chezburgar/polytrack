@@ -76,12 +76,37 @@ export class HUD {
     this.tagLayer.replaceChildren();
     this.tags.clear();
     this.standings.replaceChildren(); // the last race's drivers must not linger through this countdown
+    this.clearFinish();
   }
 
   set(key, el, value, prop = 'textContent') {
     if (this.cache[key] === value) return;
     this.cache[key] = value;
     el[prop] = value;
+  }
+
+  // the full-screen finish: flash, checkered bands, the big word, time and place
+  finish({ time, pb, medal, mode, place, racers, prev }) {
+    this.clearFinish();
+    const ord = (n) => n + (n % 100 >= 11 && n % 100 <= 13 ? 'TH' : ['TH', 'ST', 'ND', 'RD'][n % 10] || 'TH');
+    const race = mode !== 'timetrial' && racers > 1;
+    const title = race && place === 1 ? 'VICTORY!' : 'FINISH!';
+    const kicker = race ? `${ord(place)} PLACE` : medal ? `${medal.toUpperCase()} MEDAL` : 'TIME TRIAL';
+    const sub = pb ? 'NEW PERSONAL BEST' : prev != null && time > prev ? `+${formatDelta(time - prev).slice(1)} behind your best` : race ? `of ${racers}` : '';
+    const el = h('div.finish-fx' + (pb || (race && place === 1) ? '.gold' : ''),
+      h('div.ff-flash'), h('div.ff-band.a'), h('div.ff-band.b'),
+      h('div.ff-center', h('div.ff-kicker', kicker), h('div.ff-title', { dataset: { t: title } }, title), h('div.ff-time', formatTime(time)), sub ? h('div.ff-sub', sub) : null));
+    this.el.append(el);
+    this.el.classList.add('finishing');
+    this.fx = el;
+    this.fxTimer = setTimeout(() => el.classList.add('out'), 3900);
+  }
+
+  clearFinish() {
+    clearTimeout(this.fxTimer);
+    this.fx?.remove();
+    this.fx = null;
+    this.el.classList.remove('finishing');
   }
 
   countdown(n) {

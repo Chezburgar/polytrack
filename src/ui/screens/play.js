@@ -62,7 +62,7 @@ export class PlayScreen {
     const app = (this.app = ui.app);
     this.filter = 'all';
     this.prefs = { mode: 'timetrial', bots: 5, difficulty: 'medium', laps: null, ...load('playPrefs', {}) };
-    this.custom = library();
+    this.custom = library().filter((d) => d.routeOk !== false); // unfinished tracks stay in the builder
     this.selected = TRACKS.find((t) => t.id === this.prefs.track) || this.custom.find((t) => t.id === this.prefs.track) || TRACKS[0];
     if (this.selected.custom) this.filter = 'custom';
     this.grid = h('div.track-grid');
@@ -158,7 +158,7 @@ export class PlayScreen {
     this.detail.append(h('div.td-body',
       h('div.td-map', big),
       h('div.td-title', h('h2', def.name), h('div.td-sub', `${getTheme(def.theme).name} · ${def.laps ? 'Circuit' : 'Sprint'} · ${(t.length / 1000).toFixed(2)} km · ${DIFFICULTY[def.difficulty ?? 0]}${def.custom && def.author ? ` · by ${def.author}` : ''}`)),
-      def.custom ? h('div.row', button([icon('edit'), h('span', 'Edit in Track Builder')], () => { this.app.audio.play('select'); this.app.openEditor({ def, slot: def.slot }); }, 'small'), !md ? h('span.note', 'No medals yet - run the AI test in the builder.') : null) : null,
+      def.custom && def.blocks ? h('div.row', button([icon('edit'), h('span', 'Edit in Track Builder')], () => { this.app.audio.play('select'); this.app.openEditor({ def, slot: def.slot }); }, 'small'), !md ? h('span.note', 'No medals yet - run the AI test in the builder.') : null) : null,
       h('div.td-feats', ...info.feats.map((f) => h('span.feat', featNames[f]))),
       md ? h('div.td-medals', ...['author', 'gold', 'silver', 'bronze'].map((m) => {
         const got = rec?.best != null && rec.best <= md[m];

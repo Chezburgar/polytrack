@@ -89,7 +89,8 @@ export function buildTrack(def) {
   const closed = (def.laps ?? 0) > 0;
   const pieces = def.pieces.map((s) => parsePiece(s, def));
   // sprints get a walled run-off past the finish line so you can stop safely
-  if (!closed) pieces.push({ ...parsePiece('S 90 wall', def), runoff: true });
+  // (runoff: false for one-block previews in the track builder)
+  if (!closed && def.runoff !== false) pieces.push({ ...parsePiece('S 90 wall', def), runoff: true });
   const N = pieces.length;
   if (closed) solveClosure(def, pieces);
   const baseWidth = def.width ?? 14;
@@ -154,7 +155,8 @@ export function buildTrack(def) {
 
   // ---- sample every piece ------------------------------------------------
   const samples = [];
-  const pos = new Vector3(0, H[0], 0);
+  // startX/startZ: where the road begins (block tracks sit on the builder's grid)
+  const pos = new Vector3(def.startX ?? 0, H[0], def.startZ ?? 0);
   let yaw = def.startYaw ?? 0;
   const fw = new Vector3(), lf = new Vector3();
 
@@ -316,7 +318,9 @@ export function buildTrack(def) {
     checkpoints.push(gateFrom(samples[idx]));
   }
   const start = gateFrom(samples[startIndex]);
-  const finish = closed ? start : gateFrom(samples[pieceStart[N - 1]]);
+  // sprint finish: the start of the run-off, or of piece finishAt if given
+  const fin = def.finishAt != null ? clamp(def.finishAt, 0, N - 1) : N - 1;
+  const finish = closed ? start : gateFrom(samples[Math.min(samples.length - 1, pieceStart[fin])]);
 
   // ---- bounds --------------------------------------------------------------
   const bounds = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity, minZ: Infinity, maxZ: -Infinity };

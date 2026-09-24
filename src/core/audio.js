@@ -6,8 +6,14 @@
 import { clamp } from '../util/math.js';
 
 const NOTE = (n) => 440 * Math.pow(2, (n - 69) / 12);
-const MENU_SONG = 'assets/audio/menu-music.mp3';
-const SONG_GAIN = 0.5; // the file is mastered loud; this sits it under the engines
+// The menu plays these in turn. The intro plays menu 2 from just before it lifts
+// (at 21 s, as the lights go green); the menu then starts on the other one.
+const MUSIC_FILES = [
+  { url: 'assets/audio/menu-music.mp3' },
+  { url: 'assets/audio/menu-2.mp3', intro: 16 },
+];
+const INTRO_SONG = MUSIC_FILES.findIndex((m) => m.intro != null);
+const SONG_GAIN = 0.5; // the files are mastered loud; this sits them under the engines
 
 export class AudioEngine {
   constructor(settings) {
@@ -175,7 +181,7 @@ export class AudioEngine {
       L.upX.setTargetAtTime(cam.up.x, t, 0.02); L.upY.setTargetAtTime(cam.up.y, t, 0.02); L.upZ.setTargetAtTime(cam.up.z, t, 0.02);
     }
     const focus = session.focus;
-    const menu = session.mode === 'demo';
+    const menu = session.mode === 'demo' || session.mode === 'intro';
     const want = new Map();
     // the menu backdrop is silent (just the music); in a race: your car plus the nearest others
     if (menu) { for (const [id, v] of this.engines) { this._killVoice(v); this.engines.delete(id); } return; }
@@ -302,6 +308,11 @@ export class AudioEngine {
         this.noiseBurst(0.7, { freq: 300, q: 1.5, vol: 0.3, sweep: 3200 });
         this.tone(180, 0.6, { type: 'sawtooth', vol: 0.06, glide: 520 });
         break;
+      case 'slam':
+        this.noiseBurst(0.9, { freq: 200, q: 0.8, vol: 0.32, sweep: 4200 });
+        this.tone(55, 0.7, { type: 'sine', vol: 0.45, glide: 30 });
+        this.noiseBurst(0.25, { freq: 3000, q: 0.5, vol: 0.18, type: 'highpass', when: 0.02 });
+        break;
       case 'respawn':
         this.noiseBurst(0.35, { freq: 2400, q: 2, vol: 0.18, sweep: 500 });
         this.tone(880, 0.25, { type: 'sine', vol: 0.12, glide: 440 });
@@ -337,9 +348,15 @@ export class AudioEngine {
   _songEl() {
     if (this.song) return this.song;
     const el = new Audio();
-    el.src = MENU_SONG;
-    el.loop = true;
+    if (this.songIdx == null) this.songIdx = Math.floor(Math.random() * MUSIC_FILES.length);
+    el.src = MUSIC_FILES[this.songIdx].url;
     el.preload = 'auto';
+    // one song after another
+    el.addEventListener('ended', () => {
+      this.songIdx = (this.songIdx + 1) % MUSIC_FILES.length;
+      el.src = MUSIC_FILES[this.songIdx].url;
+      if (this.musicTrack === 'menu') el.play().catch(() => {});
+    });
     this.songGain = this.ctx.createGain();
     this.songGain.gain.value = 0;
     this.ctx.createMediaElementSource(el).connect(this.songGain).connect(this.music);
@@ -369,6 +386,62 @@ export class AudioEngine {
     this.songGain.gain.setTargetAtTime(0, t, 0.25);
     clearTimeout(this._songPause);
     this._songPause = setTimeout(() => this.song.pause(), 1400);
+  }
+
+  // ---- intro ------------------------------------------------------------------------
+  // Starts loading the intro song, cued to its intro point, while the "click to
+  // start" card is up (no audio context is needed to load).
+  prepIntro() {
+    const i = (this.introIdx = INTRO_SONG);
+    const el = (this.introEl = this.introEl || new Audio());
+    const at = MUSIC_FILES[i].intro;
+    el.preload = 'auto';
+    el.src = MUSIC_FILES[i].url;
+    const cue = () => { if (Math.abs(el.currentTime - at) > 0.3) el.currentTime = at; };
+    if (el.readyState >= 1) cue(); else el.addEventListener('loadedmetadata', cue, { once: true });
+    return i;
+  }
+
+  // Plays the intro song (see prepIntro); returns its index. The menu then
+  // starts on the other one.
+  playIntro() {
+    if (!this.ready) return -1;
+    this.setMusic(null);
+    if (this.introIdx == null) this.prepIntro();
+    const i = this.introIdx;
+    const el = this.introEl;
+    if (!this.introGain) {
+      this.introGain = this.ctx.createGain();
+      this.ctx.createMediaElementSource(el).connect(this.introGain).connect(this.music);
+    }
+    const t = this.ctx.currentTime;
+    this.introGain.gain.cancelScheduledValues(t);
+    this.introGain.gain.setValueAtTime(0.0001, t);
+    this.introGain.gain.exponentialRampToValueAtTime(SONG_GAIN * 1.15, t + 0.25);
+    el.play().catch(() => {});
+    this.songIdx = (i + 1) % MUSIC_FILES.length; // the menu continues with the other song
+    return i;
+  }
+
+  // seconds of the intro song played since its cue, or null until it's playing
+  introTime() {
+    const el = this.introEl;
+    if (!el || el.paused || el.seeking || el.readyState < 3 || this.introIdx == null) return null;
+    return el.currentTime - MUSIC_FILES[this.introIdx].intro;
+  }
+
+  // fade the intro song out over `secs`
+  stopIntro(secs = 1.2) {
+    if (!this.introEl) return;
+    if (!this.introGain) { this.introEl.pause(); return; } // loaded, never played
+    const t = this.ctx.currentTime;
+    const g = this.introGain.gain;
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(Math.max(0.0001, g.value), t);
+    g.exponentialRampToValueAtTime(0.0001, t + secs);
+    const el = this.introEl;
+    clearTimeout(this._introStop);
+    this._introStop = setTimeout(() => el.pause(), secs * 1000 + 100);
   }
 
   _stopSeq() {

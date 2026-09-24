@@ -14,12 +14,13 @@ import { load, save } from './util/storage.js';
 import { mulberry32 } from './util/math.js';
 import { randomBotCar, BOT_NAMES } from './car/presets.js';
 import { sanitize, buildDef } from './track/custom.js';
+import { Intro } from './game/intro.js';
 
 export const VERSION = '1.0.0';
 
 export const DEFAULT_SETTINGS = {
   quality: 'auto', camera: 'chase', fov: 70, units: 'kmh', master: 0.8, music: 0.5, sfx: 0.8,
-  showFps: false, ghost: true, touch: 'auto', shake: true, name: '',
+  showFps: false, ghost: true, touch: 'auto', shake: true, name: '', intro: true,
 };
 
 // wait until the browser has painted (so a loading card is visible before heavy
@@ -121,6 +122,8 @@ export class App {
         this.ui.show('garage');
       } else if (this.params.get('room')) {
         this.toMenu('online'); // invite link: straight to the join screen
+      } else if (this.settings.intro !== false && dev == null && !this.params.has('nointro')) {
+        this.startIntro();
       } else {
         this.toMenu();
       }
@@ -129,6 +132,14 @@ export class App {
   }
 
   // ---- modes -------------------------------------------------------------------
+  // the 15 second intro (click to start first), then the menu
+  startIntro() {
+    this.endSession();
+    this.mode = 'intro';
+    this.ui.show('intro');
+    this.intro = new Intro(this, () => { this.intro = null; this.toMenu(); });
+  }
+
   toMenu(screen = 'title') {
     this.endSession();
     this.mode = 'menu';
@@ -153,6 +164,8 @@ export class App {
   }
 
   endSession() {
+    // anything that takes over mid-intro (not its own ending) cancels it
+    if (this.intro) { this.intro.dispose(); this.intro = null; }
     if (this.session) { this.session.dispose(); this.session = null; }
     this.audio.stopEngines();
   }
@@ -332,7 +345,10 @@ export class App {
     s.autopilot = true;
     const medal = s.mode === 'online' ? null : medalFor(def, ms);
     this.lastResult = { time: ms, pb, medal, trackId: def.id, mode: s.mode, delta: ev.delta };
-    setTimeout(() => { if (this.session === s) this.showResults(); }, s.mode === 'timetrial' ? 1800 : 2600);
+    const racers = s.entries.filter((x) => x.kind !== 'ghost').length;
+    this.ui.hud.finish({ time: ms, pb, medal, mode: s.mode, place: s.player?.place || 1, racers, prev: this.records[def.id]?.best });
+    this.audio.play('slam');
+    setTimeout(() => { if (this.session === s) { this.ui.hud.clearFinish(); this.showResults(); } }, 4400);
   }
 
   showResults() {
@@ -354,7 +370,11 @@ export class App {
     this.input.pollPad();
     this._autoQuality(dt);
     const inp = this.input.state();
-    if (this.mode === 'garage' && this.ui.garage) {
+    if (this.mode === 'intro' && this.intro) {
+      this.intro.update(dt);
+      this.audio.update(this.session, dt, inp);
+      this.renderer.render();
+    } else if (this.mode === 'garage' && this.ui.garage) {
       this.ui.garage.update(dt);
     } else if (this.mode === 'editor' && this.ui.editor) {
       this.ui.editor.update(dt);

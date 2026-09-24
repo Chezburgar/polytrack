@@ -13,7 +13,7 @@ const types = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg',
   '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json', '.txt': 'text/plain',
-  '.woff2': 'font/woff2', '.map': 'application/json',
+  '.woff2': 'font/woff2', '.map': 'application/json', '.mp3': 'audio/mpeg',
 };
 
 function body(req) {
@@ -50,10 +50,19 @@ createServer(async (req, res) => {
     if (!file.startsWith(root)) { res.writeHead(403).end(); return; }
     const st = await stat(file).catch(() => null);
     if (!st || !st.isFile()) { res.writeHead(404).end('not found'); return; }
-    res.writeHead(200, {
-      'Content-Type': types[extname(file).toLowerCase()] || 'application/octet-stream',
-      'Cache-Control': 'no-store',
-    });
+    const type = types[extname(file).toLowerCase()] || 'application/octet-stream';
+    // byte ranges, so the music can start part way in (GitHub Pages serves them too)
+    const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+    if (range && (range[1] || range[2])) {
+      const a = range[1] ? +range[1] : Math.max(0, st.size - +range[2]);
+      const b = range[1] && range[2] ? Math.min(+range[2], st.size - 1) : st.size - 1;
+      if (a > b) { res.writeHead(416, { 'Content-Range': `bytes */${st.size}` }).end(); return; }
+      const data = (await readFile(file)).subarray(a, b + 1);
+      res.writeHead(206, { 'Content-Type': type, 'Cache-Control': 'no-store', 'Accept-Ranges': 'bytes', 'Content-Range': `bytes ${a}-${b}/${st.size}`, 'Content-Length': data.length });
+      res.end(data);
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-store', 'Accept-Ranges': 'bytes' });
     res.end(await readFile(file));
   } catch (e) {
     res.writeHead(500).end(String(e));

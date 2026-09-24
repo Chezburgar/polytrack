@@ -16,6 +16,10 @@ npm start       # http://localhost:5180
 
 It also runs from GitHub Pages or any static host as-is.
 
+It opens with a 15 second intro: the whole field on the grid, the lights going
+green on the music's drop, the pack flying the first jump in slow motion. Any key
+or click skips it; it can be turned off in Settings (`?nointro` skips it once).
+
 | Action | Keyboard | Gamepad |
 | --- | --- | --- |
 | Accelerate / brake-reverse | W S or arrows | RT / LT |
@@ -39,6 +43,10 @@ put back, or has finished, is see-through and passes through others until it
 is clear). Online, each player's car is shown where it is now, not where it
 was, so contact lines up with what you see.
 
+**Finishing.** Cross the line and your car throws itself into a drift and slides
+to a stop (in slow motion, except online) while the camera swings round and a
+full-screen FINISH (or VICTORY) card shows your place and time; then the results.
+
 **Jumps.** In the air the car lines itself up with its flight path and the road
 it will land on; brake lifts the nose, accelerate dips it a touch, steering turns
 it while held. On a ramp, steering is softened so jumps launch where the ramp
@@ -60,13 +68,36 @@ points. Braking cancels a boost pad's push.
 
 ## Track Builder
 
-Build a track piece by piece over a live 3D preview: straights, left/right turns
-(angle, radius, banking), hills, ramp + gap jumps, loops, road width, surfaces
-(asphalt, dirt, ice, sand, grass), barriers, checkpoints, boost pads and tunnels,
-in any of the nine sceneries. Circuits close themselves (the gold section at the
-end is the shortest smooth way back to the start line); every change is checked
-for roads that run into each other and other trouble. Tracks save in the browser
-as you go.
+Fly around a 3D world and build a track out of blocks on a 20 m grid, stacked in
+4 m layers:
+
+- **Road** - straight, long straight
+- **Turns** - hairpin, turn, wide turn, sweeper, S-bends
+- **Height** - slopes, steep slopes, big climb and drop
+- **Stunts** - ramp and big ramp (leave empty squares after them: that's the
+  gap you jump; land on road up to 8 squares on, level or lower), loops
+- **Special** - start, checkpoint, finish, boost pad
+
+Each placed block can be given a surface (asphalt, dirt, ice, sand, grass),
+barriers, banking on turns and a tunnel. The route is traced from the Start
+block along connected road ends: back into the Start makes a circuit, a Finish
+block makes a sprint. The glowing line shows the route, blue arrows the open road
+ends, red pins the problems. After each block, the build height and direction
+follow the road, so a track can be laid down block after block.
+
+| Action | Keys |
+| --- | --- |
+| Fly | W A S D / arrows, Space up, Shift down |
+| Look around | drag with the right or middle mouse button; wheel zooms |
+| Place / erase / copy | left click / right click / middle click |
+| Pick a block | 1-9 (Tab for the next group) |
+| Rotate | R (Shift+R back) |
+| Build height | E / Q or Page Up / Page Down |
+| Undo / redo | Ctrl+Z / Ctrl+Y |
+| Whole track / test drive / help | F / T / H |
+
+Tracks save in the browser as you go. Tracks from the earlier piece-by-piece
+builder still race and share; they just can't be opened in this one.
 
 - **Test drive** jumps straight into a time trial and back.
 - **AI test** lets a bot race it to prove it can be finished and set medal times.
@@ -87,7 +118,8 @@ Tracks are written as piece lists in `src/track/tracks.js`, e.g.
 ice/dirt surfaces, tunnels, checkpoints). Built-in circuits close by solving
 two `S ?` straights; custom ones get an automatic closing section
 (`src/track/custom.js`). The grammar is documented at the top of
-`src/track/builder.js`.
+`src/track/builder.js`. Builder tracks are block lists (`src/track/blocks.js`)
+that the route solver turns into the same piece strings.
 
 ## Development tools
 
@@ -101,7 +133,8 @@ two `S ?` straights; custom ones get an automatic closing section
 - `node tools/physics-test.mjs` - acceleration, braking, cornering and drift checks.
 - `node tools/browse.mjs <script>` - drives the game in headless Chrome and saves
   screenshots to `.shots/` (see `.scratch/` for examples; not committed). It opens
-  the local server by default; `--url=https://chezburgar.github.io/polytrack/` tests the live site.
+  the local server at `/?nointro` by default (`--url=/` plays the intro);
+  `--url=https://chezburgar.github.io/polytrack/` tests the live site.
 - `dev/preview.html` - top-down map and elevation profile of every track.
 - `npm run vendor` - recopies three.js and PeerJS from `node_modules` into `vendor/`.
 
@@ -109,14 +142,16 @@ two `S ?` straights; custom ones get an automatic closing section
 
 ```
 src/physics   car (raycast suspension, tyre model, air + ramp assists), car contact, collision world
-src/track     piece builder, road geometry, terrain, themes, the 20 tracks, medals, custom tracks
-src/game      race session, checkpoints/laps, track limits, AI driver, camera, ghosts, verifier
+src/track     piece builder, road geometry, terrain, themes, the 20 tracks, medals, custom tracks,
+              builder blocks + route solver
+src/game      race session, checkpoints/laps, track limits, AI driver, camera, ghosts, verifier,
+              finish celebration, the intro
 src/render    renderer + bloom, sky, scenery, props, effects
 src/car       procedural car bodies, liveries, presets
 src/net       PeerJS / BroadcastChannel transports, room + race protocol
 src/ui        screens (incl. the track builder), HUD, chat, touch controls, styles
-src/core      input, audio (synthesised engines/tyres/effects, menu music)
-assets/audio  the menu music
+src/core      input, audio (synthesised engines/tyres/effects, menu + intro music)
+assets/audio  the two menu songs (the intro plays menu-2 from 0:16; the menu plays both in turn)
 ```
 
 Everything visual is generated in code, and so is every sound except the menu

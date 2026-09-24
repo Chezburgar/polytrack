@@ -33,7 +33,9 @@ function faceNormal(a, b, c) {
   return _n.crossVectors(_e1, _e2);
 }
 
-export function buildTrackGeometry(track, theme, { chunkLen = 160 } = {}) {
+// marks: which of 'start', 'finish', 'cp' to draw (gates, checkers, grid); all by default
+export function buildTrackGeometry(track, theme, { chunkLen = 160, marks = null } = {}) {
+  const mark = (k) => !marks || marks.includes(k);
   const S = track.samples;
   const rnd = mulberry32(hashString(track.def.id + ':geo'));
   const col = (hex) => new Color(hex);
@@ -264,10 +266,10 @@ export function buildTrackGeometry(track, theme, { chunkLen = 160 } = {}) {
       }
     }
   };
-  checker(track.finish, 2, 1.1);
-  if (!track.closed) checker(track.start, 1, 0.9);
+  if (track.closed ? mark('start') : mark('finish')) checker(track.finish, 2, 1.1);
+  if (!track.closed && mark('start')) checker(track.start, 1, 0.9);
   // grid boxes behind the start line
-  for (let slot = 0; slot < 8; slot++) {
+  for (let slot = 0; slot < (mark('start') ? 8 : 0); slot++) {
     const g = gridSlot(track, slot);
     const f = frameAt(track, g.s + 2.6);
     const f2 = frameAt(track, g.s + 2.9);
@@ -329,9 +331,9 @@ export function buildTrackGeometry(track, theme, { chunkLen = 160 } = {}) {
     }
     gates.push({ kind, s: g.s, center: beamC.clone(), lat: lat.clone(), up: up.clone(), fwd: fwd.clone(), span, H });
   };
-  if (track.closed) gateAt(track.start, 'start');
-  else { gateAt(track.start, 'start'); gateAt(track.finish, 'finish'); }
-  track.checkpoints.forEach((cp) => gateAt(cp, 'cp'));
+  if (mark('start')) gateAt(track.start, 'start');
+  if (!track.closed && mark('finish')) gateAt(track.finish, 'finish');
+  if (mark('cp')) track.checkpoints.forEach((cp) => gateAt(cp, 'cp'));
 
   // ---- pillars under elevated road ----------------------------------------
   if (groundY !== null) {
