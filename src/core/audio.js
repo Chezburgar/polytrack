@@ -8,10 +8,13 @@ import { clamp } from '../util/math.js';
 const NOTE = (n) => 440 * Math.pow(2, (n - 69) / 12);
 const MENU_SONG = 'assets/audio/menu-music.mp3';
 // The pre-race intro plays one of these (never the menu), a different one from
-// last time, cued so the moment it drops (s into the song) lands on the first racer.
+// last time, cued so one of the moments it drops (s into the song) lands on the
+// first racer.
 export const INTRO_SONGS = [
-  { url: 'assets/audio/menu-2.mp3', drop: 21 },
-  { url: 'assets/audio/prerace-2.mp3', drop: 30 }, // the build that peaks at 31 s
+  { url: 'assets/audio/menu-2.mp3', drops: [21, 36.5] },
+  { url: 'assets/audio/prerace-2.mp3', drops: [30] }, // the build that peaks at 31 s
+  { url: 'assets/audio/prerace-take-2.mp3', drops: [30] }, // back in after the break
+  { url: 'assets/audio/prerace-take-3.mp3', drops: [15, 30] },
 ];
 const SONG_GAIN = 0.5; // the files are mastered loud; this sits them under the engines
 

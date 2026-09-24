@@ -157,7 +157,7 @@ src/car       procedural car bodies, liveries, presets
 src/net       PeerJS / BroadcastChannel transports, room + race protocol
 src/ui        screens (incl. the track builder), HUD, chat, touch controls, styles
 src/core      input, audio (synthesised engines/tyres/effects, menu and intro songs)
-assets/audio  the menu song (menu-music.mp3) and the pre-race intro's (menu-2.mp3, prerace-2.mp3)
+assets/audio  the menu song (menu-music.mp3) and the pre-race intro's four (menu-2, prerace-*)
 ```
 
 Everything visual is generated in code, and so is every sound except the two

@@ -46,7 +46,9 @@ export class RaceIntro {
     const n = this.order.length;
     this.per = n ? clamp(15.5 / n, 2.2, 4) : 0;
     this.fly = INTRO_LENGTH - HERO - n * this.per; // the flyover takes the rest
-    this.cue = Math.max(0, (app.audio.introSong?.drop ?? 21) - this.fly); // the song drops on the first racer
+    // start the song so it drops on the first racer (its first drop late enough)
+    const drops = app.audio.introSong?.drops || [21];
+    this.cue = Math.max(0, (drops.find((d) => d >= this.fly) ?? drops[drops.length - 1]) - this.fly);
     this.terrain = session.loaded.terrain;
     this.theme = session.loaded.theme;
     this.water = this.theme.ground === 'water' || this.theme.ground === 'lava' ? -1.2 : -Infinity;
