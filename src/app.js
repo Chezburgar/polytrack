@@ -15,6 +15,8 @@ import { mulberry32 } from './util/math.js';
 import { randomBotCar, BOT_NAMES } from './car/presets.js';
 import { sanitize, buildDef } from './track/custom.js';
 import { RaceIntro } from './game/intro.js';
+import { getTheme } from './track/themes.js';
+import { loadCityMap } from './track/maps/index.js';
 
 export const VERSION = '1.0.0';
 
@@ -159,6 +161,12 @@ export class App {
     this.audio.stopEngines();
   }
 
+  // a track in a real town fetches its map data first (buildings, streets)
+  async prepTown(def) {
+    const id = getTheme(def.theme).cityMap;
+    if (id) { try { await loadCityMap(id); } catch (e) { console.warn('town map', e); } }
+  }
+
   // the pre-race intro (not for time trials, restarts or test runs)
   introOn() {
     return this.settings.raceIntro !== false && !this.params.has('nointro') && !this.params.has('dev');
@@ -174,6 +182,7 @@ export class App {
     this.ui.loading(opts.def);
     await afterPaint();
     const def = opts.def;
+    await this.prepTown(def);
     const rec = this.records[def.id];
     const ghostOn = this.settings.ghost && mode === 'timetrial';
     const ghost = ghostOn ? load('ghost.' + def.id, null) : null;
@@ -255,6 +264,7 @@ export class App {
     if (m.intro) this.audio.prepIntro();
     this.ui.loading(def);
     await afterPaint();
+    await this.prepTown(def);
     if (this.net !== net) { this.ui.loading(null); return; }
     const bots = net.isHost ? m.grid.filter((g) => g.kind === 'bot').map((g) => ({ id: g.id, name: g.name, custom: g.car, skill: g.skill, slot: g.slot })) : [];
     const remotes = m.grid.filter((g) => g.id !== net.selfId && (g.kind === 'player' || !net.isHost)).map((g) => ({ id: g.id, name: g.name, custom: g.car, slot: g.slot }));

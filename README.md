@@ -1,6 +1,6 @@
 # PolyTrack Pro
 
-A low-poly 3D racing game for the browser: 30 tracks across eighteen environments, a
+A low-poly 3D racing game for the browser: 31 tracks across nineteen environments, a
 track builder for your own, eight car bodies with a full garage, AI opponents,
 ghosts and medals, and online multiplayer for up to eight players. No install,
 no build step, no accounts.
@@ -114,7 +114,7 @@ builder still race and share; they just can't be opened in this one.
 
 ## Tracks
 
-Tracks 1-20 run from easy to expert across nine themes. The Pro set (21-30,
+Tracks 1-20 run from easy to expert across nine themes. The Pro set (21-31,
 the **Pro** tab) is harder, each in an environment of its own, with its own
 twist:
 
@@ -130,6 +130,17 @@ twist:
 | 28 | Toxic Meltdown | Toxic Works, embers | catwalks over an acid lake |
 | 29 | Haunted Hollow | Haunted Hollow, fireflies | switchbacks by moonlight |
 | 30 | Apex Gauntlet | Synthwave | all of it: ice, wall rides, a spiral, loops |
+| 31 | BCC Special | Bethesda, MD (real) | real streets, finishing at Bethesda-Chevy Chase High School |
+
+**BCC Special** is built from the real place. The route - Bethesda Avenue,
+Woodmont Avenue, Cordell Avenue, Wisconsin Avenue and East-West Highway to
+B-CC - is the street centrelines from OpenStreetMap, redrawn as straights with a
+curve at each corner (within 7.5 m of the real line); the climbs are real ground
+elevation (USGS 3DEP). Around it are the town's real buildings (footprints and,
+where mapped, heights), side streets, parks and pitches, with street signs at
+the corners and the school's sign at the finish. The map data is loaded only
+for that track (`src/track/maps/`, © OpenStreetMap contributors, ODbL); the tools
+that made it are in `.scratch/bcc/` (not committed).
 
 Themes can carry weather (rain, snow, dust, embers, fireflies -
 `src/render/weather.js`), lightning with thunder, an aurora, a striped
@@ -171,7 +182,7 @@ that the route solver turns into the same piece strings.
 
 ```
 src/physics   car (raycast suspension, tyre model, air + ramp assists), car contact, collision world
-src/track     piece builder, road geometry, terrain, themes, the 30 tracks, medals, custom tracks,
+src/track     piece builder, road geometry, terrain, themes, the 31 tracks, medals, custom tracks,
               builder blocks + route solver
 src/game      race session, checkpoints/laps, track limits, AI driver, camera, ghosts, verifier,
               finish celebration, the pre-race intro

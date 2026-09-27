@@ -364,6 +364,28 @@ export const THEMES = {
     clouds: 0x3a2a4a, cloudCount: 14,
     mountains: [0x1a1024, 0x241830, 0x5a4a6a],
   },
+  // a real place: Bethesda, Maryland (buildings and streets from map data)
+  bethesda: {
+    name: 'Bethesda, MD',
+    sky: { top: 0x4a8ad8, horizon: 0xcfe0ee, bottom: 0xa8c0a0, sun: 0xfff2d8 },
+    fog: { color: 0xc8dbe8, near: 240, far: 1150 },
+    sun: { color: 0xfff0dc, intensity: 2.6, dir: [-0.55, 0.62, 0.35] },
+    hemi: { sky: 0xd8e8ff, ground: 0x7a8a6a, intensity: 1.2 },
+    ground: 'grass',
+    groundColors: [0x6fa048, 0x78a850, 0x68983f, 0x80ae58],
+    hillColor: 0x6a9a48, hills: 1.5, mountainAmp: 0,
+    followRoad: true, cityMap: 'bethesda',
+    ...ROAD,
+    road: 0x45484f, line: 0xf2f2f2, curbA: 0x1f4aa8, curbB: 0xf2b82c, shoulder: 0x55585f,
+    slab: 0xc8c4bc, slabDark: 0x9a968e, wall: 0xd0cec8, wallA: 0x1f4aa8, wallB: 0xe8e6e0,
+    pillar: 0xb8b4ac, gate: 0x1f4aa8, banner: 0xf2b82c, boost: 0x39e6ff,
+    lamps: true, lampColor: 0xfff0c8,
+    decor: ['oak', 'bush', 'tuft', 'flower'],
+    density: 1.6,
+    propPalette: { leaf: 0x3f7f32, leaf2: 0x55963f, flowers: [0xf05a8a, 0xffffff, 0xffd54a] },
+    clouds: 0xffffff, cloudCount: 18,
+    mountains: null, grandstands: false,
+  },
 };
 
 export function getTheme(id) {

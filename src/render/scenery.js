@@ -6,6 +6,8 @@ import { mulberry32, hashString, clamp, makeNoise2D } from '../util/math.js';
 import { makeProp, makeGrandstand, GeoBuilder } from './props.js';
 import { frameAt } from '../track/geometry.js';
 import { makeTerrain } from '../track/terrain.js';
+import { buildCityMap } from './citymap.js';
+import { CITY_MAPS } from '../track/maps/index.js';
 
 const PROP_SPEC = {
   oak: { n: 900, min: 9, scale: [0.8, 1.35], tall: 7 },
@@ -132,6 +134,10 @@ export function buildScenery(track, theme, { decor = 1, terrain = null } = {}) {
     });
   }
 
+  // ---- a real town (map data loaded before the race) -----------------------------------
+  const cityMap = theme.cityMap && CITY_MAPS[theme.cityMap];
+  const city = cityMap ? buildCityMap(group, track, theme, cityMap, { index, heightAt, rnd }) : null;
+
   // ---- props --------------------------------------------------------------------------
   const TILE = 260;
   const tiles = new Map();
@@ -164,6 +170,7 @@ export function buildScenery(track, theme, { decor = 1, terrain = null } = {}) {
         const near = index.nearest(x, z, sp.min + 60);
         if (near && near.d < sp.min + (sp.far ? s : 0)) continue;
         if (index.roadAbove(x, z, 3 + s) !== null) continue;
+        if (city && (city.blocked(x, z) || city.blocked(x + 2.5, z) || city.blocked(x - 2.5, z) || city.blocked(x, z + 2.5) || city.blocked(x, z - 2.5))) continue;
         const y = heightAt(x, z);
         if (wet && y < 0.4 && kind !== 'iceberg') continue;
         if (kind === 'iceberg' && y > -3) continue;

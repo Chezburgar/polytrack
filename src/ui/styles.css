@@ -150,6 +150,7 @@ input, select { font-family: inherit; user-select: text; -webkit-user-select: te
 .td-title h2 { margin: 0; font-size: 28px; font-style: italic; font-weight: 900; }
 .td-sub { color: var(--muted); font-size: 13px; }
 .td-feats { display: flex; flex-wrap: wrap; gap: 5px; }
+.td-credit { font-size: 11px; color: var(--muted); }
 .feat { background: rgba(57,198,240,0.14); color: #9fe6ff; padding: 3px 9px; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
 .td-medals, .res-ladder { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 14px; }
 .tdm { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); }

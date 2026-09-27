@@ -1,7 +1,7 @@
 // Terrain height field shared by the renderer and the collision world, so what
 // you see is exactly what you drive on. Flat where roads run, rolling hills
 // further out, mountains at the rim; islands in a sea for wet themes.
-import { makeNoise2D, mulberry32, hashString, smoothstep } from '../util/math.js';
+import { makeNoise2D, mulberry32, hashString, smoothstep, clamp } from '../util/math.js';
 import { RoadIndex } from './roadindex.js';
 
 export function makeTerrain(track, theme) {
@@ -18,7 +18,37 @@ export function makeTerrain(track, theme) {
   const distCenter = (x, z) => Math.max(0, Math.hypot(x - cx, z - cz) - radius);
   const nearBox = (x, z, m) => x > b.minX - m && x < b.maxX + m && z > b.minZ - m && z < b.maxZ + m;
 
+  // Towns (theme.followRoad): the ground is where the streets are - a smooth
+  // field of the road heights round about (inverse-distance weighted), meeting
+  // the road exactly at its edges, so streets never stand on pillars.
+  let follow = null;
+  if (theme.followRoad) {
+    const S = track.samples.filter((sm, i) => sm.road && i % 5 === 0);
+    const cell = 40, pad = 1200;
+    const fx0 = b.minX - pad, fz0 = b.minZ - pad;
+    const fnx = Math.ceil((b.maxX - b.minX + 2 * pad) / cell), fnz = Math.ceil((b.maxZ - b.minZ + 2 * pad) / cell);
+    const F = new Float32Array((fnx + 1) * (fnz + 1));
+    for (let j = 0; j <= fnz; j++) for (let i = 0; i <= fnx; i++) {
+      const x = fx0 + i * cell, z = fz0 + j * cell;
+      let w = 0, h = 0;
+      for (const sm of S) { const d2 = (sm.p.x - x) ** 2 + (sm.p.z - z) ** 2; const k = 1 / (d2 + 900); w += k; h += k * sm.p.y; }
+      F[j * (fnx + 1) + i] = h / w;
+    }
+    const field = (x, z) => {
+      const u = clamp((x - fx0) / cell, 0, fnx - 1e-6), v = clamp((z - fz0) / cell, 0, fnz - 1e-6);
+      const i = Math.floor(u), j = Math.floor(v), fu = u - i, fv = v - j, r = fnx + 1;
+      return (F[j * r + i] * (1 - fu) + F[j * r + i + 1] * fu) * (1 - fv) + (F[(j + 1) * r + i] * (1 - fu) + F[(j + 1) * r + i + 1] * fu) * fv;
+    };
+    follow = (x, z) => {
+      const near = index.nearest(x, z, 60);
+      const base = field(x, z) - 0.35 + noise.fbm(x / 90, z / 90, 2) * (theme.hills ?? 1.5);
+      if (!near) return base;
+      return base + (near.y - 0.35 - base) * (1 - smoothstep(2, 60, near.d));
+    };
+  }
+
   const heightAt = (x, z) => {
+    if (follow) return follow(x, z);
     const near = nearBox(x, z, 170) ? index.nearest(x, z, 160) : null;
     const d = near ? near.d : 160;
     const n = noise.fbm(x / 240, z / 240, 4);

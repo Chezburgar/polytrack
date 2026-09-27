@@ -1,8 +1,8 @@
-// The 30 PolyTrack Pro courses. Each layout is a list of pieces (grammar in
+// The 31 PolyTrack Pro courses. Each layout is a list of pieces (grammar in
 // builder.js). laps: 0 = sprint (start -> finish), >0 = circuit. Circuits close
 // automatically through their two "S ?" straights.
 // difficulty: 0 easy, 1 medium, 2 hard, 3 expert, 4 extreme.
-// pro: the Pro set (21-30), each in its own environment. gravity: a multiplier
+// pro: the Pro set (21-31), each in its own environment. gravity: a multiplier
 // for the whole track (Red Planet runs at half).
 export const TRACKS = [
   {
@@ -278,6 +278,29 @@ export const TRACKS = [
       'S 40 boost', 'LOOP r13', 'S 60 cp', 'R 60 r45 dirt', 'L 60 r45 dirt', 'S 60 w10 nowall',
       'R 90 r30 nowall', 'S 70', 'K 12 a12', 'J 36 d4', 'S 70', 'L 150 r60 b40 wall', 'S 60 cp', 'R 45 r50',
       'L 45 r50', 'S 50 boost', 'LOOP r13 o-18', 'S 60', 'R 90 r35 b10', 'S 70', 'K 14 a12', 'J 44 d4', 'S 90',
+    ],
+  },
+  // ---- the finale: a real place ----------------------------------------------------
+  // BCC Special follows real streets in downtown Bethesda, Maryland, and finishes
+  // at Bethesda-Chevy Chase High School. The layout is the real street centrelines
+  // from OpenStreetMap (© OpenStreetMap contributors, ODbL) as straights with a
+  // curve at each corner, the heights real ground elevation (USGS 3DEP 1/3").
+  // Start: Bethesda Avenue at Arlington Road, facing east.
+  {
+    id: 'bcc-special', name: 'BCC Special', theme: 'bethesda', laps: 0, difficulty: 4, pro: true, special: true,
+    showcase: false, walls: 'all', startX: 0, startZ: 0, startYaw: 1.619851, startHeight: 0.25,
+    blurb: 'Real Bethesda, MD: Bethesda Row, up Woodmont, down Wisconsin Avenue, and East-West Highway to the finish at B-CC.',
+    pieces: [
+      'S 250.88 u3.23 w12', 'L 130.2473 r13.43 u0.03 w12', 'S 23.73 d0.16 w12',
+      'R 14.1847 r125.83 d0.31 w12', 'S 0.81 w12', 'R 15.2798 r153.53 d0.34 w12',
+      'R 11.2687 r385.54 u0.17 w12', 'S 113.99 u1.31 w12 cp', 'L 15.9292 r180.55 u0.63 w12',
+      'L 12.4878 r180.55 u0.78 w12', 'S 69.31 u1.24 w12', 'R 16.9188 r116.07 u0.45 w12',
+      'S 12.13 u0.12 w12', 'R 23.7296 r58.51 u0.21 w12', 'S 0.63 w12', 'R 26.3211 r199.20 u0.92 w12',
+      'S 52.90 u1.32 w12', 'L 23.0598 r136.46 u1.54 w12', 'L 18.8876 r138.13 u1.17 w12',
+      'S 89.72 u0.59 w12', 'L 4.4273 r400.00 d0.14 w12', 'S 229.79 d2.27 w12 cp',
+      'R 87.6179 r17.00 u0.39 w10', 'S 49.28 u1.14 w10', 'R 92.6290 r17.00 u0.31 w17',
+      'S 680.68 u0.09 w17 cp', 'L 90.3345 r17.00 d0.27 w14', 'S 393.39 d1.90 w14',
+      'L 3.2807 r400.00 u0.08 w14', 'S 74.14 d1.05 w14',
     ],
   },
 ];

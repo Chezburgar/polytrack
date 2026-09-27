@@ -180,5 +180,11 @@ export const MEDALS = {
     gold: 77700,
     silver: 86600,
     bronze: 99900
+  },
+  'bcc-special': {
+    author: 62540,
+    gold: 66700,
+    silver: 74300,
+    bronze: 85700
   }
 };

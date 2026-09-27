@@ -21,7 +21,7 @@ export class TitleScreen {
     this.el = h('div.screen.title-screen',
       h('div.title-left',
         logo('big'),
-        h('div.tagline', 'Low-poly racing. Thirty tracks. Your car, your way.'),
+        h('div.tagline', 'Low-poly racing. Thirty-one tracks. Your car, your way.'),
         h('div.menu-stack',
           button([icon('play'), h('span', 'Play')], go('play'), 'primary big', { autofocus: true }),
           button([icon('users'), h('span', 'Multiplayer')], go('online'), 'big'),

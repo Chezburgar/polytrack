@@ -36,6 +36,7 @@ export function trackInfo(def) {
     if (th.weather) feats.add(th.weather.kind);
     if (th.lightning) feats.add('lightning');
     if (th.night) feats.add('night');
+    if (th.cityMap) feats.add('realplace').add('streets');
     built.set(def.id, { track: t, feats: [...feats] });
   }
   return built.get(def.id);
@@ -161,7 +162,7 @@ export class PlayScreen {
     const featNames = {
       loop: 'Loops', jump: 'Jumps', boost: 'Boost pads', ice: 'Ice', dirt: 'Dirt', banked: 'Banked turns', tunnel: 'Tunnels',
       wallride: 'Wall rides', spiral: 'Spirals', lowgrav: 'Low gravity', nowall: 'No barriers', night: 'Night',
-      rain: 'Rain', snow: 'Snow', dust: 'Dust storm', embers: 'Embers', fireflies: 'Fireflies', lightning: 'Lightning',
+      realplace: 'Real place', streets: 'Street circuit', rain: 'Rain', snow: 'Snow', dust: 'Dust storm', embers: 'Embers', fireflies: 'Fireflies', lightning: 'Lightning',
     };
     const big = document.createElement('canvas');
     big.width = 360; big.height = 230;
@@ -174,6 +175,7 @@ export class PlayScreen {
       h('div.td-title', h('h2', def.name), h('div.td-sub', `${getTheme(def.theme).name} · ${def.laps ? 'Circuit' : 'Sprint'} · ${(t.length / 1000).toFixed(2)} km · ${DIFFICULTY[def.difficulty ?? 0]}${def.custom && def.author ? ` · by ${def.author}` : ''}`)),
       def.custom && def.blocks ? h('div.row', button([icon('edit'), h('span', 'Edit in Track Builder')], () => { this.app.audio.play('select'); this.app.openEditor({ def, slot: def.slot }); }, 'small'), !md ? h('span.note', 'No medals yet - run the AI test in the builder.') : null) : null,
       h('div.td-feats', ...info.feats.filter((f) => featNames[f]).map((f) => h('span.feat', featNames[f]))),
+      getTheme(def.theme).cityMap ? h('div.td-credit', 'Real streets and buildings. Map data © OpenStreetMap contributors (ODbL).') : null,
       md ? h('div.td-medals', ...['author', 'gold', 'silver', 'bronze'].map((m) => {
         const got = rec?.best != null && rec.best <= md[m];
         return h('div.tdm' + (got ? '.got' : ''), medalIcon(m), h('span', MEDAL_NAMES[m]), h('b', formatTime(md[m])));

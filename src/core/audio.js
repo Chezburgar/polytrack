@@ -7,8 +7,7 @@ import { clamp } from '../util/math.js';
 
 const NOTE = (n) => 440 * Math.pow(2, (n - 69) / 12);
 // Every song carries its measured loudness (integrated LUFS) so quieter files
-// can be turned up to match. The menu plays the menu song and then the pre-race
-// songs in full, one after another.
+// can be turned up to match. The menu plays all of them in full, shuffled.
 const MENU_SONG = { url: 'assets/audio/menu-song.mp3', lufs: -15.3 };
 // The pre-race intro plays one of these, a different one from last time, cued so
 // one of the moments it drops (s into the song) lands on the first racer.
@@ -363,16 +362,16 @@ export class AudioEngine {
     if (want) this._startSeq(want);
   }
 
-  // The menu's songs: the menu song first, then the pre-race songs in a shuffled
-  // order, then round again.
+  // The menu's songs - the menu song and the pre-race songs - in a shuffled
+  // order (so it doesn't always open with the same one), then round again.
   _songEl() {
     if (this.song) return this.song;
-    const rest = INTRO_SONGS.slice();
-    for (let i = rest.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [rest[i], rest[j]] = [rest[j], rest[i]]; }
-    this.menuList = [MENU_SONG, ...rest];
+    const list = [MENU_SONG, ...INTRO_SONGS];
+    for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
+    this.menuList = list;
     this.menuIdx = 0;
     const el = new Audio();
-    el.src = MENU_SONG.url;
+    el.src = list[0].url;
     el.preload = 'auto';
     this.songGain = this.ctx.createGain();
     this.songGain.gain.value = 0;
