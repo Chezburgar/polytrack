@@ -142,6 +142,7 @@ input, select { font-family: inherit; user-select: text; -webkit-user-select: te
 .tc-diff { position: absolute; top: 10px; right: 10px; display: flex; gap: 3px; }
 .tc-diff i { width: 7px; height: 12px; background: rgba(255,255,255,0.25); transform: skewX(-15deg); }
 .tc-diff i.on { background: var(--gold); }
+.tc-diff.extreme i.on { background: #ff4a3d; box-shadow: 0 0 8px rgba(255,74,61,0.7); }
 .medal-summary { margin-left: auto; display: flex; align-items: center; gap: 6px; font-weight: 700; color: var(--muted); }
 .medal-summary .medal { margin-left: 8px; }
 .track-detail { background: var(--panel); border: 1px solid var(--line); padding: 16px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px); }

@@ -1,15 +1,20 @@
 // Generates medal times from AI runs: the bot at full skill sets the author
 // time; gold/silver/bronze are fixed margins above it. Writes src/track/medals.js.
+// node tools/medals.mjs            every track
+// node tools/medals.mjs id id ...  just those; the others keep their medals
 import { writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TRACKS } from '../src/track/tracks.js';
 import { simulate } from './simcore.mjs';
+import { MEDALS } from '../src/track/medals.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const ids = process.argv.slice(2);
 const out = {};
 const round = (ms, step) => Math.round(ms / step) * step;
 for (const def of TRACKS) {
+  if (ids.length && !ids.includes(def.id)) { if (MEDALS[def.id]) out[def.id] = MEDALS[def.id]; continue; }
   // best of a few runs with different lateral personalities
   let best = Infinity;
   for (const seed of [1, 2, 3]) {

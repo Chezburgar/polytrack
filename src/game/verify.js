@@ -21,7 +21,7 @@ export class Verifier {
     this.track = L.track;
     this.speeds = L.speeds;
     this.race = new RaceState(this.track);
-    this.car = new Car(L.world);
+    this.car = new Car(L.world, L.spec);
     this.car.reset(this.race.spawn.pos, this.race.spawn.quat);
     this.ai = new AIDriver(this.track, L.line, L.speeds, { skill, seed });
     this.prog = new Progress(this.track, this.track.start.index);

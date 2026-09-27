@@ -13,6 +13,7 @@ void main() {
 const skyFrag = /* glsl */ `
 uniform vec3 top; uniform vec3 horizon; uniform vec3 bottom; uniform vec3 sunColor; uniform vec3 sunDir;
 uniform float stars; uniform float sunSize;
+uniform float aurora; uniform float flash; uniform float sunStripes; uniform float time;
 varying vec3 vDir;
 float hash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 void main() {
@@ -20,7 +21,24 @@ void main() {
   float h = d.y;
   vec3 col = h > 0.0 ? mix(horizon, top, pow(clamp(h, 0.0, 1.0), 0.55)) : mix(horizon, bottom, clamp(-h * 4.0, 0.0, 1.0));
   float s = max(dot(d, normalize(sunDir)), 0.0);
-  col += sunColor * (pow(s, 900.0 / sunSize) * 6.0 + pow(s, 24.0) * 0.28 + pow(s, 4.0) * 0.08);
+  float disc = pow(s, 900.0 / sunSize) * 6.0;
+  if (sunStripes > 0.0) {
+    // a retro sun: bands cut through its lower half
+    float sy = d.y - normalize(sunDir).y;
+    if (sy < 0.0) disc *= step(0.42, fract(-sy * sunStripes));
+  }
+  col += sunColor * (disc + pow(s, 24.0) * 0.28 + pow(s, 4.0) * 0.08);
+  if (aurora > 0.0 && h > 0.02) {
+    // curtains of light that ripple slowly along the horizon
+    float az = atan(d.z, d.x);
+    float band = 0.3 + sin(az * 2.0 + time * 0.04) * 0.07 + sin(az * 5.0 - time * 0.03) * 0.03;
+    float w = exp(-pow((h - band) / 0.1, 2.0)) + exp(-pow((h - band - 0.12) / 0.06, 2.0)) * 0.5;
+    float curtain = 0.5 + 0.5 * sin(az * 26.0 + sin(az * 6.0 + time * 0.25) * 2.4 + time * 0.15);
+    curtain *= 0.6 + 0.4 * sin(az * 9.0 - time * 0.1);
+    vec3 ac = mix(vec3(0.15, 1.0, 0.55), vec3(0.65, 0.3, 1.0), smoothstep(band - 0.02, band + 0.16, h));
+    col += ac * w * curtain * aurora;
+  }
+  col += vec3(0.75, 0.8, 1.0) * flash * (0.35 + 0.65 * clamp(h + 0.3, 0.0, 1.0));
   if (stars > 0.0 && h > 0.0) {
     vec3 q = floor(d * 380.0);
     float r = hash(q);
@@ -45,6 +63,10 @@ export function buildSky(theme, seed = 1) {
       sunDir: { value: new THREE.Vector3(...theme.sun.dir).normalize() },
       stars: { value: theme.stars || 0 },
       sunSize: { value: theme.sunSize || 1 },
+      aurora: { value: theme.aurora || 0 },
+      flash: { value: 0 },
+      sunStripes: { value: theme.sunStripes || 0 },
+      time: { value: 0 },
     },
     vertexShader: skyVert,
     fragmentShader: skyFrag,

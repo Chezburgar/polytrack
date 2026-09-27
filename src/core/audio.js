@@ -1,22 +1,28 @@
 // Audio: engines, tyres, wind and effects are synthesised with WebAudio (races
-// only - the menu backdrop is silent apart from the music); the menu song and
-// the pre-race intro's song stream from files (the old step-sequencer tune stays
-// as a fallback if the menu song can't load). The context starts on the first
-// user gesture (autoplay rules).
+// only - the menu backdrop is silent apart from the music); the songs stream
+// from files (the old step-sequencer tune stays as a fallback if none of the
+// menu's can load). The context starts on the first user gesture (autoplay
+// rules).
 import { clamp } from '../util/math.js';
 
 const NOTE = (n) => 440 * Math.pow(2, (n - 69) / 12);
-const MENU_SONG = 'assets/audio/menu-music.mp3';
-// The pre-race intro plays one of these (never the menu), a different one from
-// last time, cued so one of the moments it drops (s into the song) lands on the
-// first racer.
+// Every song carries its measured loudness (integrated LUFS) so quieter files
+// can be turned up to match. The menu plays the menu song and then the pre-race
+// songs in full, one after another.
+const MENU_SONG = { url: 'assets/audio/menu-song.mp3', lufs: -15.3 };
+// The pre-race intro plays one of these, a different one from last time, cued so
+// one of the moments it drops (s into the song) lands on the first racer.
 export const INTRO_SONGS = [
-  { url: 'assets/audio/menu-2.mp3', drops: [21, 36.5] },
-  { url: 'assets/audio/prerace-2.mp3', drops: [30] }, // the build that peaks at 31 s
-  { url: 'assets/audio/prerace-take-2.mp3', drops: [30] }, // back in after the break
-  { url: 'assets/audio/prerace-take-3.mp3', drops: [15, 30] },
+  { url: 'assets/audio/menu-2.mp3', lufs: -3.7, drops: [21, 36.5] },
+  { url: 'assets/audio/prerace-2.mp3', lufs: -4.6, drops: [30] }, // the build that peaks at 31 s
+  { url: 'assets/audio/prerace-take-2.mp3', lufs: -10.1, drops: [30] }, // back in after the break
+  { url: 'assets/audio/prerace-take-3.mp3', lufs: -8.4, drops: [15, 30] },
 ];
-const SONG_GAIN = 0.5; // the files are mastered loud; this sits them under the engines
+// the menu sits where the first menu song did (-6.6 LUFS at 0.5, under the
+// engines), the intro where menu 2 did (-3.7 LUFS at 0.575)
+const level = (song, ref, gain) => Math.min(2.5, gain * Math.pow(10, (ref - song.lufs) / 20));
+const menuLevel = (song) => level(song, -6.6, 0.5);
+const introLevel = (song) => level(song, -3.7, 0.575);
 
 export class AudioEngine {
   constructor(settings) {
@@ -293,6 +299,15 @@ export class AudioEngine {
     this.noiseBurst(0.12, { freq: 400, vol: 0.12 * k, type: 'lowpass' });
   }
 
+  // thunder: a long low rumble, with a crack first when the strike was close
+  thunder(dist = 500) {
+    if (!this.ready) return;
+    const near = clamp(1 - dist / 900, 0, 1);
+    if (near > 0.45) this.noiseBurst(0.3, { freq: 2600, q: 0.5, vol: 0.16 * near, type: 'highpass' });
+    this.noiseBurst(2.6 + near, { freq: 160 + near * 220, q: 0.6, vol: 0.2 + near * 0.25, sweep: 45 });
+    this.tone(38, 1.8, { type: 'sine', vol: 0.18 + near * 0.2, glide: 28, when: 0.05 });
+  }
+
   play(name) {
     if (!this.ready) return;
     switch (name) {
@@ -348,17 +363,31 @@ export class AudioEngine {
     if (want) this._startSeq(want);
   }
 
+  // The menu's songs: the menu song first, then the pre-race songs in a shuffled
+  // order, then round again.
   _songEl() {
     if (this.song) return this.song;
+    const rest = INTRO_SONGS.slice();
+    for (let i = rest.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [rest[i], rest[j]] = [rest[j], rest[i]]; }
+    this.menuList = [MENU_SONG, ...rest];
+    this.menuIdx = 0;
     const el = new Audio();
-    el.src = MENU_SONG;
-    el.loop = true;
+    el.src = MENU_SONG.url;
     el.preload = 'auto';
     this.songGain = this.ctx.createGain();
     this.songGain.gain.value = 0;
     this.ctx.createMediaElementSource(el).connect(this.songGain).connect(this.music);
+    let failed = 0;
+    const next = () => {
+      this.menuIdx = (this.menuIdx + 1) % this.menuList.length;
+      el.src = this.menuList[this.menuIdx].url;
+      if (this.musicTrack === 'menu') this._playSong();
+    };
+    el.addEventListener('ended', () => { failed = 0; next(); });
     el.addEventListener('error', () => {
-      // no file (offline copy, blocked download): fall back to the synth tune
+      // a missing file skips to the next song; with none loading at all (an
+      // offline copy, a blocked download) the synth tune takes over
+      if (++failed < this.menuList.length) { next(); return; }
       this.songFailed = true;
       if (this.musicTrack === 'menu') { this.musicTrack = null; this.setMusic('menu'); }
     });
@@ -371,7 +400,7 @@ export class AudioEngine {
     clearTimeout(this._songPause);
     const t = this.ctx.currentTime;
     this.songGain.gain.cancelScheduledValues(t);
-    this.songGain.gain.setTargetAtTime(SONG_GAIN, t, 0.6);
+    this.songGain.gain.setTargetAtTime(menuLevel(this.menuList[this.menuIdx]), t, 0.6);
     const p = el.play();
     if (p?.catch) p.catch(() => { /* not allowed yet - unlock() retries */ });
   }
@@ -419,7 +448,7 @@ export class AudioEngine {
     const t = this.ctx.currentTime;
     this.introGain.gain.cancelScheduledValues(t);
     this.introGain.gain.setValueAtTime(0.0001, t);
-    this.introGain.gain.exponentialRampToValueAtTime(SONG_GAIN * 1.15, t + 0.4);
+    this.introGain.gain.exponentialRampToValueAtTime(introLevel(INTRO_SONGS[this.introIdx]), t + 0.4);
     el.play().catch(() => {});
     return true;
   }

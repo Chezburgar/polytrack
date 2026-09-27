@@ -1,6 +1,6 @@
 # PolyTrack Pro
 
-A low-poly 3D racing game for the browser: 20 tracks across nine themes, a
+A low-poly 3D racing game for the browser: 30 tracks across eighteen environments, a
 track builder for your own, eight car bodies with a full garage, AI opponents,
 ghosts and medals, and online multiplayer for up to eight players. No install,
 no build step, no accounts.
@@ -114,6 +114,28 @@ builder still race and share; they just can't be opened in this one.
 
 ## Tracks
 
+Tracks 1-20 run from easy to expert across nine themes. The Pro set (21-30,
+the **Pro** tab) is harder, each in an environment of its own, with its own
+twist:
+
+| # | Track | Environment | Twist |
+| --- | --- | --- | --- |
+| 21 | Jungle Run | Jungle, rain | mud hairpins, river jumps |
+| 22 | Frostbite | Polar Night, snow, aurora | glare-ice circuit |
+| 23 | Red Planet | Mars, dust storm | half gravity, very long jumps |
+| 24 | Gridrunner | Synthwave | 40 degree wall-ride banking, a loop |
+| 25 | Sugar Rush | Sugar Land | rollercoaster: spiral lift hill, drop, two loops |
+| 26 | Eye of the Storm | Thunderstorm, lightning | flooded plain, no barriers in places |
+| 27 | Cloud Nine | Cloud Kingdom | a sky road with nothing below |
+| 28 | Toxic Meltdown | Toxic Works, embers | catwalks over an acid lake |
+| 29 | Haunted Hollow | Haunted Hollow, fireflies | switchbacks by moonlight |
+| 30 | Apex Gauntlet | Synthwave | all of it: ice, wall rides, a spiral, loops |
+
+Themes can carry weather (rain, snow, dust, embers, fireflies -
+`src/render/weather.js`), lightning with thunder, an aurora, a striped
+synthwave sun, a neon grid floor, a sea of clouds and floating islands; a track
+can set its own gravity (`gravity: 0.5`).
+
 Tracks are written as piece lists in `src/track/tracks.js`, e.g.
 
 ```js
@@ -135,7 +157,8 @@ that the route solver turns into the same piece strings.
   physics (with boost pads and the live track-limit rules) and must finish
   without being put back (`--trace` prints its state). The track builder's AI
   test runs the same code (`src/game/verify.js`).
-- `node tools/medals.mjs` - regenerates medal times from AI runs.
+- `node tools/medals.mjs [trackId...]` - regenerates medal times from AI runs (named
+  tracks only, if given; the rest keep theirs).
 - `node tools/physics-test.mjs` - acceleration, braking, cornering and drift checks.
 - `node tools/browse.mjs <script>` - drives the game in headless Chrome and saves
   screenshots to `.shots/` (see `.scratch/` for examples; not committed). It opens
@@ -148,17 +171,18 @@ that the route solver turns into the same piece strings.
 
 ```
 src/physics   car (raycast suspension, tyre model, air + ramp assists), car contact, collision world
-src/track     piece builder, road geometry, terrain, themes, the 20 tracks, medals, custom tracks,
+src/track     piece builder, road geometry, terrain, themes, the 30 tracks, medals, custom tracks,
               builder blocks + route solver
 src/game      race session, checkpoints/laps, track limits, AI driver, camera, ghosts, verifier,
               finish celebration, the pre-race intro
-src/render    renderer + bloom, sky, scenery, props, effects
+src/render    renderer + bloom, sky, scenery, props, weather, effects
 src/car       procedural car bodies, liveries, presets
 src/net       PeerJS / BroadcastChannel transports, room + race protocol
 src/ui        screens (incl. the track builder), HUD, chat, touch controls, styles
 src/core      input, audio (synthesised engines/tyres/effects, menu and intro songs)
-assets/audio  the menu song (menu-music.mp3) and the pre-race intro's four (menu-2, prerace-*)
+assets/audio  menu-song.mp3 and the four pre-race intro songs (menu-2, prerace-*); the menu
+              plays its song, then the intro songs in full, round and round
 ```
 
-Everything visual is generated in code, and so is every sound except the two
+Everything visual is generated in code, and so is every sound except the
 songs; the only third-party code is three.js and PeerJS in `vendor/`.

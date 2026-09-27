@@ -1,7 +1,9 @@
-// The 20 PolyTrack Pro courses. Each layout is a list of pieces (grammar in
+// The 30 PolyTrack Pro courses. Each layout is a list of pieces (grammar in
 // builder.js). laps: 0 = sprint (start -> finish), >0 = circuit. Circuits close
 // automatically through their two "S ?" straights.
-// difficulty: 0 easy, 1 medium, 2 hard, 3 expert.
+// difficulty: 0 easy, 1 medium, 2 hard, 3 expert, 4 extreme.
+// pro: the Pro set (21-30), each in its own environment. gravity: a multiplier
+// for the whole track (Red Planet runs at half).
 export const TRACKS = [
   {
     id: 'green-start', name: 'Green Start', theme: 'meadow', laps: 3, difficulty: 0,
@@ -171,13 +173,111 @@ export const TRACKS = [
   },
   {
     id: 'grand-finale', name: 'Grand Finale', theme: 'dusk', laps: 0, difficulty: 3,
-    blurb: 'Everything PolyTrack Pro has, in one run at sunset.',
+    blurb: 'Every trick in the book, in one run at sunset.',
     pieces: [
       'S 70', 'S 40 boost', 'R 60 r60 b10', 'S 65 u8', 'K 12 a12', 'J 30 d4', 'S 60 cp', 'L 90 r40 b10',
       'S 40 tunnel', 'S 40 tunnel', 'R 90 r40 tunnel', 'S 50 boost', 'LOOP r12', 'S 60 cp', 'L 45 r60',
       'R 90 r35', 'S 40 ice', 'L 90 r40 ice', 'S 50', 'R 360 r40 u16 b8 cp', 'S 60', 'K 12 a12',
       'J 40 d8', 'S 70', 'L 60 r50 dirt', 'R 60 r50 dirt', 'S 50 boost cp', 'L 120 r40 b12', 'S 40 d4',
       'LOOP r13 o-18', 'S 60', 'R 45 r70', 'L 45 r70', 'S 65 boost', 'K 14 a12', 'J 44 d4', 'S 90',
+    ],
+  },
+
+  // ---- Pro: harder tracks, new environments ------------------------------------
+  {
+    id: 'jungle-run', name: 'Jungle Run', theme: 'jungle', laps: 0, difficulty: 3, pro: true,
+    blurb: 'A rally stage through the rainforest - mud, river jumps and blind hairpins.',
+    pieces: [
+      'S 70', 'R 45 r60', 'S 50 dirt', 'L 90 r32 dirt', 'S 40 u6', 'R 110 r28 b8 dirt', 'S 50 d6 cp',
+      'L 45 r55', 'S 70', 'K 12 a11', 'J 26 d2', 'S 70', 'R 90 r34 dirt', 'S 40 w11 dirt',
+      'L 90 r26 dirt', 'R 90 r26 dirt cp', 'S 45 tunnel', 'S 45 tunnel', 'L 60 r45', 'S 60 u5',
+      'R 45 r50', 'S 65 d5', 'K 12 a12', 'J 30 d3', 'S 70', 'R 150 r30 b10', 'S 40 w12 dirt',
+      'L 70 r35 dirt', 'S 60 u4 cp', 'R 60 r40', 'L 60 r40', 'S 50 d4', 'L 90 r30 dirt', 'S 90 boost', 'S 40',
+    ],
+  },
+  {
+    id: 'frostbite', name: 'Frostbite', theme: 'arctic', laps: 3, difficulty: 3, pro: true,
+    blurb: 'Glare ice under the aurora. Brake early, steer gently.',
+    pieces: [
+      'S 90', 'R 90 r40 b6', 'S 60 ice', 'L 90 r30 ice', 'S 40 u5', 'R 180 r32 b10 ice cp', 'S 50 d5',
+      'L 90 r40', 'S 60', 'R 90 r40 ice', 'S 120', 'R 90 r30 b8 ice cp', 'S ?', 'R 90 r45', 'S ?',
+    ],
+  },
+  {
+    id: 'red-planet', name: 'Red Planet', theme: 'mars', laps: 0, difficulty: 3, pro: true, gravity: 0.5,
+    blurb: 'Half gravity. Crater-sized jumps and very long hang time.',
+    pieces: [
+      'S 90', 'K 12 a8', 'J 60 d3', 'S 170 u3', 'R 90 r70 b8', 'S 80 cp', 'K 12 a9', 'J 70 d5', 'S 180 u5',
+      'L 120 r60 b10', 'S 100', 'K 14 a10', 'J 80 d8', 'S 190 u8 cp', 'R 60 r80', 'L 60 r80', 'S 110',
+      'K 14 a10', 'J 90 d4', 'S 220 u4', 'R 90 r70', 'S 60',
+    ],
+  },
+  {
+    id: 'gridrunner', name: 'Gridrunner', theme: 'cyber', laps: 4, difficulty: 3, pro: true,
+    blurb: 'A neon speedway with walls to ride - flat out round 40 degree banking.',
+    pieces: [
+      'S 120 boost', 'L 180 r70 b40 wall', 'S 90', 'LOOP r13 o18', 'S 70 cp', 'L 90 r45 b35 wall', 'S ?',
+      'L 90 r45 b35 wall cp', 'S ?',
+    ],
+  },
+  {
+    id: 'sugar-rush', name: 'Sugar Rush', theme: 'candy', laps: 2, difficulty: 3, pro: true,
+    blurb: 'A rollercoaster: spiral lift hill, the big drop, two loops.',
+    pieces: [
+      'S 90', 'L 360 r36 u20 b10', 'S 40', 'R 90 r45 b10 cp', 'S 100 d20', 'S 40 boost', 'LOOP r12', 'S 40',
+      'R 90 r40 b12', 'S ?', 'LOOP r13 o-18', 'S 50', 'R 90 r45 cp', 'S ?', 'R 90 r50',
+    ],
+  },
+  {
+    id: 'eye-of-the-storm', name: 'Eye of the Storm', theme: 'storm', laps: 0, difficulty: 4, pro: true,
+    blurb: 'Lightning, rain and a flooded plain. No barriers where it matters.',
+    pieces: [
+      'S 70', 'S 40 w12', 'R 60 r50 nowall', 'S 60 w11 nowall', 'L 90 r35 nowall', 'S 70', 'K 12 a11', 'J 28 d2',
+      'S 60 cp', 'R 120 r34 b10', 'S 40 u6', 'L 45 r50', 'S 60 d6 w11 nowall', 'R 90 r30 nowall',
+      'L 90 r30 nowall', 'S 70', 'K 12 a12', 'J 32 d3', 'S 65 cp', 'L 150 r32 b12 wall', 'S 40 w10 nowall',
+      'R 60 r40 nowall', 'S 60', 'L 45 r60', 'R 45 r60', 'S 70', 'K 12 a12', 'J 36 d4', 'S 90', 'R 90 r40',
+      'S 60 boost', 'S 40',
+    ],
+  },
+  {
+    id: 'cloud-nine', name: 'Cloud Nine', theme: 'sky', laps: 0, difficulty: 4, pro: true, walls: 'none',
+    blurb: 'A ribbon of road above the clouds. No barriers, nothing below.',
+    pieces: [
+      'S 70', 'S 40', 'K 14 a11', 'J 36 d4', 'S 90', 'L 60 r70 b12', 'S 40 w11', 'R 90 r45 b10 cp',
+      'S 60 d8', 'S 45', 'K 12 a12', 'J 34 d6', 'S 90', 'L 120 r45 b14', 'S 40 u10', 'S 40', 'R 45 r60',
+      'L 45 r60', 'S 60 w10', 'R 90 r40 b12 cp', 'S 70', 'K 14 a12', 'J 42 d8', 'S 90', 'L 90 r50 b15',
+      'S 50 w11', 'LOOP r13', 'S 60', 'R 60 r55 b12', 'S 60 boost', 'S 40',
+    ],
+  },
+  {
+    id: 'toxic-meltdown', name: 'Toxic Meltdown', theme: 'toxic', laps: 0, difficulty: 4, pro: true,
+    blurb: 'Catwalks over an acid lake, through the works and out the other side.',
+    pieces: [
+      'S 70', 'S 40 w12', 'R 90 r40 b8', 'S 50 tunnel', 'S 40 tunnel', 'L 60 r45 tunnel', 'S 60 cp', 'K 12 a12',
+      'J 30 d2', 'S 60', 'R 120 r30 b10 wall', 'S 40 w10 nowall', 'L 90 r32 nowall', 'R 90 r32 nowall',
+      'S 60 u6', 'S 30', 'K 12 a12', 'J 32 d6', 'S 65 cp', 'L 150 r35 b12', 'S 50 tunnel', 'R 90 r40 tunnel',
+      'S 40', 'LOOP r12', 'S 60', 'R 45 r60', 'L 45 r60', 'S 70', 'K 14 a12', 'J 38 d3', 'S 80',
+      'R 90 r35 b10', 'S 60 boost', 'S 40',
+    ],
+  },
+  {
+    id: 'haunted-hollow', name: 'Haunted Hollow', theme: 'haunted', laps: 3, difficulty: 3, pro: true,
+    blurb: 'Fog, graves and switchbacks by moonlight - and a loop in the dark.',
+    pieces: [
+      'S 80', 'R 90 r30', 'S 40 tunnel', 'L 90 r26 tunnel', 'S 30', 'R 180 r28 b8 cp', 'S 50 u6', 'L 45 r35',
+      'R 45 r35', 'L 90 r30', 'R 90 r30', 'S 50 d6', 'S 40 boost', 'LOOP r12', 'S 50', 'R 90 r32', 'S ?',
+      'R 90 r26 b10 cp', 'S ?',
+    ],
+  },
+  {
+    id: 'apex-gauntlet', name: 'Apex Gauntlet', theme: 'cyber', laps: 0, difficulty: 4, pro: true,
+    blurb: 'The hardest run there is: ice, wall rides, a spiral, loops and big air.',
+    pieces: [
+      'S 80', 'S 40 boost', 'K 14 a12', 'J 40 d4', 'S 70', 'L 90 r40 b35 wall', 'S 50', 'R 120 r28 ice',
+      'S 40 ice w11', 'L 90 r30 ice', 'S 60 cp', 'R 360 r38 u18 b10', 'S 60', 'L 90 r45 b12', 'S 80 d10',
+      'S 40 boost', 'LOOP r13', 'S 60 cp', 'R 60 r45 dirt', 'L 60 r45 dirt', 'S 60 w10 nowall',
+      'R 90 r30 nowall', 'S 70', 'K 12 a12', 'J 36 d4', 'S 70', 'L 150 r60 b40 wall', 'S 60 cp', 'R 45 r50',
+      'L 45 r50', 'S 50 boost', 'LOOP r13 o-18', 'S 60', 'R 90 r35 b10', 'S 70', 'K 14 a12', 'J 44 d4', 'S 90',
     ],
   },
 ];

@@ -6,6 +6,7 @@ import { buildTrackGeometry } from './geometry.js';
 import { getTheme } from './themes.js';
 import { CollisionWorld } from '../physics/world.js';
 import { computeRacingLine, computeSpeedProfile } from '../game/ai.js';
+import { CAR_SPEC } from '../physics/car.js';
 import { makeTerrain } from './terrain.js';
 
 export function groundFor(theme) {
@@ -38,7 +39,9 @@ export function loadTrack(def) {
   }
   world.ground = groundFor(theme);
   world.build(8);
+  // low-gravity tracks: every car on it gets the lighter spec
+  const spec = def.gravity ? { ...CAR_SPEC, gravity: CAR_SPEC.gravity * def.gravity } : CAR_SPEC;
   const line = computeRacingLine(track);
-  const speeds = computeSpeedProfile(track, line);
-  return { def, track, theme, geo, world, line, speeds, terrain };
+  const speeds = computeSpeedProfile(track, line, { gravity: spec.gravity });
+  return { def, track, theme, geo, world, line, speeds, terrain, spec };
 }

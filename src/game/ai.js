@@ -59,12 +59,12 @@ export function computeRacingLine(track, margin = 1.9) {
 }
 
 // Target speed at every sample from curvature, surface grip and braking distance.
-export function computeSpeedProfile(track, line, { grip = 1, vmax = 90 } = {}) {
+export function computeSpeedProfile(track, line, { grip = 1, vmax = 90, gravity = CAR_SPEC.gravity } = {}) {
   const S = track.samples;
   const n = S.length;
   const closed = track.closed;
   const spec = CAR_SPEC;
-  const g = spec.gravity;
+  const g = gravity;
   const pos = (i) => {
     const s = S[i];
     return new Vector3(s.p.x + s.l.x * line[i], s.p.y + s.l.y * line[i], s.p.z + s.l.z * line[i]);
@@ -99,10 +99,12 @@ export function computeSpeedProfile(track, line, { grip = 1, vmax = 90 } = {}) {
     const kv = (a3.t.y - c3.t.y) / Math.max(1, c3.s - a3.s); // + when the road tips over a crest
     if (kv > 0.004 && s.n.y > 0.8) v[i] = Math.min(v[i], Math.sqrt((g * 1.25) / kv));
   }
-  // braking pass (backwards), twice round for circuits
+  // braking pass (backwards), twice round for circuits; lighter gravity means
+  // less grip to brake with (downforce still helps a little)
+  const gScale = 0.3 + 0.7 * (g / spec.gravity);
   const brake = (i) => {
     const surf = SURFACE[S[i].surf] || SURFACE[0];
-    return 13.5 * Math.min(1, surf.grip + 0.1) * grip;
+    return 13.5 * Math.min(1, surf.grip + 0.1) * grip * gScale;
   };
   // Jumps and loops break the braking chain: you can't brake in the air, and
   // arriving slow is what makes you fall short - so bots commit to them flat

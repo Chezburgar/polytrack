@@ -193,6 +193,84 @@ export function makeProp(kind, rnd, pal = {}) {
       b.add(new THREE.BoxGeometry(1.2, 0.12, 0.25), 0x3a3f48, { pos: [0.55, 6, 0] });
       break;
     }
+    case 'jungletree': {
+      // a tall bare trunk under a flat, layered canopy, vines hanging from it
+      b.add(cyl(0.22, 0.4, 7.5, 6), pal.trunk ?? 0x6a5236, { pos: [0, 3.75, 0] });
+      b.add(ico(2.6), leaf, { pos: [0, 7.8, 0], scale: [1.35, 0.5, 1.35], jitter: 0.5, rnd, tint: 0.16 });
+      b.add(ico(1.9), leaf2, { pos: [0.9, 8.6, -0.6], scale: [1.2, 0.45, 1.2], jitter: 0.4, rnd, tint: 0.16 });
+      b.add(ico(1.6), leaf2, { pos: [-1.2, 7.2, 0.8], scale: [1.2, 0.45, 1.1], jitter: 0.4, rnd, tint: 0.16 });
+      for (let i = 0; i < 3; i++) {
+        const a = rnd() * Math.PI * 2;
+        b.add(cyl(0.04, 0.04, 2.4, 3), 0x3f6a2a, { pos: [Math.cos(a) * 1.7, 6.1, Math.sin(a) * 1.7] });
+      }
+      break;
+    }
+    case 'fern': {
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * Math.PI * 2 + rnd() * 0.4;
+        b.add(cone(0.28, 1.8, 4), i % 2 ? leaf : leaf2, { pos: [Math.cos(a) * 0.7, 0.55, Math.sin(a) * 0.7], rot: [Math.sin(a) * 1.1, 0, -Math.cos(a) * 1.1], scale: [1, 1, 0.35], tint: 0.12, rnd });
+      }
+      break;
+    }
+    // candy: white parts take each instance's colour
+    case 'lollipop': {
+      b.add(cyl(0.09, 0.09, 3.2, 5), 0xf4f0ea, { pos: [0, 1.6, 0] });
+      b.add(cyl(1.2, 1.2, 0.34, 14), 0xffffff, { pos: [0, 3.9, 0], rot: [Math.PI / 2, 0, 0] });
+      b.add(cyl(0.78, 0.78, 0.36, 14), 0xdcdcdc, { pos: [0, 3.9, 0], rot: [Math.PI / 2, 0, 0] });
+      b.add(cyl(0.36, 0.36, 0.38, 10), 0xffffff, { pos: [0, 3.9, 0], rot: [Math.PI / 2, 0, 0] });
+      break;
+    }
+    case 'candycane': {
+      const n = 8;
+      for (let i = 0; i < n; i++) b.add(cyl(0.22, 0.22, 0.5, 8), i % 2 ? 0xffffff : 0xe8303a, { pos: [0, 0.25 + i * 0.5, 0] });
+      // the crook: short segments round a half circle
+      const R = 0.7, top = n * 0.5;
+      for (let i = 0; i <= 6; i++) {
+        const a = (i / 6) * Math.PI;
+        b.add(cyl(0.22, 0.22, 0.42, 8), i % 2 ? 0xe8303a : 0xffffff, { pos: [R - Math.cos(a) * R, top + Math.sin(a) * R, 0], rot: [0, 0, -a] });
+      }
+      break;
+    }
+    case 'gumdrop': {
+      b.add(cyl(0.55, 1.1, 1.0, 9), 0xffffff, { pos: [0, 0.5, 0] });
+      b.add(ico(0.62, 1), 0xffffff, { pos: [0, 1.0, 0], scale: [1, 0.7, 1] });
+      break;
+    }
+    case 'pylon': {
+      b.add(cone(1.1, 7, 4), 0xffffff, { pos: [0, 3.5, 0], rot: [0, Math.PI / 4, 0] });
+      b.add(new THREE.OctahedronGeometry(0.5, 0), 0xffffff, { pos: [0, 8.2, 0] });
+      break;
+    }
+    case 'tombstone': {
+      const c = pal.rock ?? 0x8a8d96;
+      b.add(new THREE.BoxGeometry(1.0, 1.1, 0.24), c, { pos: [0, 0.55, 0], rot: [0, 0, (rnd() - 0.5) * 0.15], tint: 0.1, rnd });
+      b.add(cyl(0.5, 0.5, 0.24, 10), c, { pos: [0, 1.1, 0], rot: [Math.PI / 2, 0, 0], tint: 0.1, rnd });
+      break;
+    }
+    case 'cross': {
+      const c = pal.rock ?? 0x8a8d96;
+      b.add(new THREE.BoxGeometry(0.22, 1.7, 0.22), c, { pos: [0, 0.85, 0] });
+      b.add(new THREE.BoxGeometry(0.9, 0.22, 0.22), c, { pos: [0, 1.25, 0] });
+      break;
+    }
+    case 'pumpkin': {
+      b.add(ico(0.7, 1), 0xff7a1a, { pos: [0, 0.5, 0], scale: [1.2, 0.8, 1.2], jitter: 0.08, rnd });
+      b.add(cyl(0.07, 0.1, 0.35, 5), 0x6aa03a, { pos: [0, 1.1, 0] });
+      break;
+    }
+    case 'stack': {
+      // a factory chimney on its boiler house
+      b.add(new THREE.BoxGeometry(6, 5, 6), 0x4a4f4a, { pos: [0, 2.5, 0] });
+      for (let i = 0; i < 5; i++) b.add(cyl(0.9, 1.0, 3.2, 8), i % 2 ? 0xd8d8d0 : 0xb03a2a, { pos: [0, 6.6 + i * 3.2, 0] });
+      break;
+    }
+    case 'floatisland': {
+      b.add(cyl(3.2, 3.0, 0.9, 9), 0x6fbf4a, { pos: [0, 0, 0], jitter: 0.3, rnd, tint: 0.1 });
+      b.add(cone(3.0, 5.5, 9), 0x8a7a66, { pos: [0, -3.2, 0], rot: [Math.PI, 0, 0], jitter: 0.5, rnd, tint: 0.12 });
+      b.add(cyl(0.18, 0.28, 2.2, 5), 0x7a5234, { pos: [0.6, 1.5, 0.3] });
+      b.add(ico(1.3), 0x4f9f3a, { pos: [0.6, 3.2, 0.3], jitter: 0.3, rnd, tint: 0.12 });
+      break;
+    }
     default:
       b.add(ico(1), 0xff00ff, {});
   }

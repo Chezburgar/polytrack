@@ -120,5 +120,65 @@ export const MEDALS = {
     gold: 72300,
     silver: 80500,
     bronze: 92900
+  },
+  'jungle-run': {
+    author: 57190,
+    gold: 61000,
+    silver: 67900,
+    bronze: 78400
+  },
+  frostbite: {
+    author: 144580,
+    gold: 154100,
+    silver: 171700,
+    bronze: 198200
+  },
+  'red-planet': {
+    author: 61080,
+    gold: 65100,
+    silver: 72500,
+    bronze: 83700
+  },
+  gridrunner: {
+    author: 99540,
+    gold: 106100,
+    silver: 118200,
+    bronze: 136400
+  },
+  'sugar-rush': {
+    author: 77260,
+    gold: 82400,
+    silver: 91800,
+    bronze: 105900
+  },
+  'eye-of-the-storm': {
+    author: 48600,
+    gold: 51800,
+    silver: 57700,
+    bronze: 66600
+  },
+  'cloud-nine': {
+    author: 47320,
+    gold: 50400,
+    silver: 56200,
+    bronze: 64900
+  },
+  'toxic-meltdown': {
+    author: 51430,
+    gold: 54800,
+    silver: 61100,
+    bronze: 70500
+  },
+  'haunted-hollow': {
+    author: 111700,
+    gold: 119100,
+    silver: 132700,
+    bronze: 153100
+  },
+  'apex-gauntlet': {
+    author: 72920,
+    gold: 77700,
+    silver: 86600,
+    bronze: 99900
   }
 };

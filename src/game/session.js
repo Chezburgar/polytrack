@@ -39,6 +39,11 @@ export class Session {
     this.world = this.loaded.world;
     this.laps = this.track.closed ? opts.laps || opts.def.laps || 3 : 0;
     this.view = new WorldView(this.renderer, this.loaded, { decor: this.renderer.quality.decor });
+    // thunder follows the lightning (not over the silent menu backdrop)
+    this.view.onThunder = (delay, dist) => {
+      if (this.mode === 'demo') return;
+      setTimeout(() => { if (app.session === this) app.audio.thunder(dist); }, delay * 1000);
+    };
     this.effects = new Effects(this.renderer.scene);
     this.camera = new ChaseCamera(this.renderer.camera);
     this.camera.setMode(app.settings?.camera || 'chase');
@@ -113,7 +118,7 @@ export class Session {
     e.wheelSpin = 0;
     e.place = 0;
     if (kind === 'player' || kind === 'bot') {
-      e.car = new Car(this.world);
+      e.car = new Car(this.world, this.loaded.spec);
       e.car.reset(e.pos, e.quat);
       e.limits = new TrackLimits(this.track);
       if (kind === 'bot') {

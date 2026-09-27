@@ -1,4 +1,4 @@
-// Track select: grid of 20 tracks with thumbnails, medals and bests, and a
+// Track select: grid of 30 tracks with thumbnails, medals and bests, and a
 // detail panel to pick Time Trial or a race against AI.
 import { h, icon, clear } from '../dom.js';
 import { button } from '../ui.js';
@@ -24,9 +24,18 @@ export function trackInfo(def) {
       if (p.boost) feats.add('boost');
       if (p.surface === 'ice') feats.add('ice');
       if (p.surface === 'dirt' || p.surface === 'sand') feats.add('dirt');
-      if (p.bank) feats.add('banked');
+      if (p.bank) feats.add(Math.abs(p.bank) >= 30 ? 'wallride' : 'banked');
       if (p.tunnel) feats.add('tunnel');
+      if (p.type === 'T' && Math.abs(p.turn) > 5.2 && p.dh) feats.add('spiral');
+      if (p.walls === 'none') feats.add('nowall');
     }
+    // the whole track and where it is
+    const th = getTheme(def.theme);
+    if (def.gravity && def.gravity < 1) feats.add('lowgrav');
+    if (def.walls === 'none') feats.add('nowall');
+    if (th.weather) feats.add(th.weather.kind);
+    if (th.lightning) feats.add('lightning');
+    if (th.night) feats.add('night');
     built.set(def.id, { track: t, feats: [...feats] });
   }
   return built.get(def.id);
@@ -49,7 +58,7 @@ export function trackThumb(def, w = 240, h2 = 150) {
 }
 const hex = (n) => '#' + n.toString(16).padStart(6, '0');
 
-export const DIFFICULTY = ['Easy', 'Medium', 'Hard', 'Expert'];
+export const DIFFICULTY = ['Easy', 'Medium', 'Hard', 'Expert', 'Extreme'];
 export const MEDAL_NAMES = { author: 'Author', gold: 'Gold', silver: 'Silver', bronze: 'Bronze' };
 
 export function medalIcon(m, big = false) {
@@ -67,7 +76,7 @@ export class PlayScreen {
     if (this.selected.custom) this.filter = 'custom';
     this.grid = h('div.track-grid');
     this.detail = h('div.track-detail');
-    const tabs = h('div.tabs', ...[['all', 'All'], ['sprint', 'Sprints'], ['circuit', 'Circuits'], ['custom', `My tracks (${this.custom.length})`]].map(([k, label]) =>
+    const tabs = h('div.tabs', ...[['all', 'All'], ['sprint', 'Sprints'], ['circuit', 'Circuits'], ['pro', 'Pro'], ['custom', `My tracks (${this.custom.length})`]].map(([k, label]) =>
       h('button.tab' + (k === this.filter ? '.on' : ''), { type: 'button', onclick: (e) => {
         this.filter = k; tabs.querySelectorAll('.tab').forEach((t) => t.classList.remove('on')); e.currentTarget.classList.add('on');
         // switching to your tracks shows one of them
@@ -97,6 +106,7 @@ export class PlayScreen {
     TRACKS.forEach((def, i) => {
       if (this.filter === 'sprint' && def.laps) return;
       if (this.filter === 'circuit' && !def.laps) return;
+      if (this.filter === 'pro' && !def.pro) return;
       const rec = this.app.records[def.id];
       const m = rec?.best != null ? medalFor(def.id, rec.best) : null;
       const card = h('button.track-card' + (def === this.selected ? '.sel' : ''), {
@@ -111,7 +121,7 @@ export class PlayScreen {
         h('div.tc-meta', h('span', getTheme(def.theme).name), h('span.tc-type', def.laps ? `${def.laps} laps` : 'Sprint')),
         h('div.tc-best', medalIcon(m), rec?.best != null ? formatTime(rec.best) : '--:--.---'),
       ),
-      h('div.tc-diff', ...[0, 1, 2, 3].map((k) => h('i' + (k <= (def.difficulty ?? 0) ? '.on' : '')))));
+      h('div.tc-diff' + ((def.difficulty ?? 0) >= 4 ? '.extreme' : ''), ...[0, 1, 2, 3, 4].map((k) => h('i' + (k <= (def.difficulty ?? 0) ? '.on' : '')))));
       this.grid.append(card);
     });
     this.grid.querySelector('.sel')?.scrollIntoView({ block: 'nearest' });
@@ -148,7 +158,11 @@ export class PlayScreen {
     const p = this.prefs;
     const laps = p.laps ?? def.laps;
     const modeBtn = (k, label, ic) => h('button.seg' + (p.mode === k ? '.on' : ''), { type: 'button', onclick: () => { p.mode = k; this.renderDetail(); } }, icon(ic), label);
-    const featNames = { loop: 'Loops', jump: 'Jumps', boost: 'Boost pads', ice: 'Ice', dirt: 'Dirt', banked: 'Banked turns', tunnel: 'Tunnels' };
+    const featNames = {
+      loop: 'Loops', jump: 'Jumps', boost: 'Boost pads', ice: 'Ice', dirt: 'Dirt', banked: 'Banked turns', tunnel: 'Tunnels',
+      wallride: 'Wall rides', spiral: 'Spirals', lowgrav: 'Low gravity', nowall: 'No barriers', night: 'Night',
+      rain: 'Rain', snow: 'Snow', dust: 'Dust storm', embers: 'Embers', fireflies: 'Fireflies', lightning: 'Lightning',
+    };
     const big = document.createElement('canvas');
     big.width = 360; big.height = 230;
     const bctx = big.getContext('2d');
@@ -159,7 +173,7 @@ export class PlayScreen {
       h('div.td-map', big),
       h('div.td-title', h('h2', def.name), h('div.td-sub', `${getTheme(def.theme).name} · ${def.laps ? 'Circuit' : 'Sprint'} · ${(t.length / 1000).toFixed(2)} km · ${DIFFICULTY[def.difficulty ?? 0]}${def.custom && def.author ? ` · by ${def.author}` : ''}`)),
       def.custom && def.blocks ? h('div.row', button([icon('edit'), h('span', 'Edit in Track Builder')], () => { this.app.audio.play('select'); this.app.openEditor({ def, slot: def.slot }); }, 'small'), !md ? h('span.note', 'No medals yet - run the AI test in the builder.') : null) : null,
-      h('div.td-feats', ...info.feats.map((f) => h('span.feat', featNames[f]))),
+      h('div.td-feats', ...info.feats.filter((f) => featNames[f]).map((f) => h('span.feat', featNames[f]))),
       md ? h('div.td-medals', ...['author', 'gold', 'silver', 'bronze'].map((m) => {
         const got = rec?.best != null && rec.best <= md[m];
         return h('div.tdm' + (got ? '.got' : ''), medalIcon(m), h('span', MEDAL_NAMES[m]), h('b', formatTime(md[m])));

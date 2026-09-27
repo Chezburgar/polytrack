@@ -328,10 +328,11 @@ export class RaceIntro {
     this.cam(p, c, 40);
   }
 
-  // a drone up the ramp and out over the gap, the landing ahead
+  // a drone up the ramp and out over the gap, the landing ahead (flying above
+  // gate height: a checkpoint often stands at the foot of the ramp)
   jump(sh, u) {
     const s = lerp(sh.a - 34, sh.a + 6, u);
-    const p = this.above(this.at(s, sh.side * 3, lerp(5, 9, u), _p), 3);
+    const p = this.above(this.at(s, sh.side * 3, lerp(8.5, 11.5, u), _p), 3);
     this.cam(p, this.at(sh.b + 12, 0, 0, _q), 54);
   }
 

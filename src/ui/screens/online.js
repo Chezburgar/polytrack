@@ -151,30 +151,7 @@ export class LobbyScreen {
     for (let i = net.players.size; i < Math.min(MAX_PLAYERS, net.players.size + (net.settings.bots || 0)); i++) {
       this.roster.append(h('div.player.bot', h('span.pchip.bot', icon('robot')), h('span.pname', 'AI driver'), h('span.tag.wait', net.settings.difficulty)));
     }
-    // side: track + settings
-    const s = net.settings;
-    const def = net.trackDef() || TRACKS[0];
-    clear(this.side);
-    const thumb = trackThumb(def, 320, 180);
-    const trackRow = h('div.lobby-track', thumb, h('div', h('b', def.name), h('span', `${getTheme(def.theme).name} · ${def.laps ? (s.laps || def.laps) + ' laps' : 'Sprint'} · ${(trackInfo(def).track.length / 1000).toFixed(1)} km${def.custom ? ` · custom${def.author ? ' by ' + def.author : ''}` : ''}`)));
-    this.side.append(h('div.panel', h('h3', 'Track'), trackRow));
-    if (def.custom && !net.isHost) {
-      const have = library().some((d) => d.id === def.id);
-      trackRow.append(button(have ? 'In your tracks' : 'Save to my tracks', (e) => { saveToLibrary({ ...def, slot: undefined }); e.currentTarget.textContent = 'Saved'; e.currentTarget.disabled = true; this.ui.toast(`Saved "${def.name}" to your tracks`); }, 'small', { disabled: have }));
-    }
-    if (net.isHost) {
-      const mine = library().filter((d) => d.routeOk !== false);
-      const sel = h('select.track-select',
-        h('optgroup', { label: 'PolyTrack Pro tracks' }, ...TRACKS.map((t, i) => h('option', { value: t.id, selected: t.id === s.trackId }, `${String(i + 1).padStart(2, '0')}  ${t.name}`))),
-        mine.length ? h('optgroup', { label: 'My tracks' }, ...mine.map((t) => h('option', { value: 'lib:' + t.slot, selected: t.id === s.trackId }, t.name))) : null);
-      sel.addEventListener('change', () => net.setSetting('trackId', sel.value.startsWith('lib:') ? mine.find((t) => 'lib:' + t.slot === sel.value) : sel.value));
-      const opts = h('div.opts',
-        h('div.opt', h('span', 'Track'), sel),
-        def.laps ? this.stepper('Laps', s.laps || def.laps, 1, 9, (v) => net.setSetting('laps', v)) : null,
-        this.stepper('AI drivers', s.bots || 0, 0, MAX_PLAYERS - net.players.size, (v) => net.setSetting('bots', v)),
-        (s.bots || 0) > 0 ? this.choice('AI skill', ['easy', 'medium', 'hard', 'pro'], s.difficulty, (v) => net.setSetting('difficulty', v)) : null);
-      this.side.firstChild.append(opts);
-    }
+    this.renderSide();
     clear(this.action);
     if (net.state === 'waiting' || net.state === 'racing') {
       this.action.append(h('div.wait-note', 'A race is in progress - you will join the next one.'));
@@ -191,6 +168,40 @@ export class LobbyScreen {
         button(me?.ready ? [icon('check'), h('span', 'Ready!')] : 'Ready up', () => { net.setReady(!me?.ready); app.audio.play('click'); }, (me?.ready ? 'on ' : '') + 'primary big wide'));
     }
     this.action.append(button([icon('car'), h('span', 'Garage')], () => app.openGarage(true), 'wide'));
+  }
+
+  // The track panel. The roster refreshes every couple of seconds (pings), so
+  // this is only rebuilt when something it shows has changed - rebuilding it
+  // would close the host's track menu while they're choosing.
+  renderSide() {
+    const net = this.net;
+    const s = net.settings;
+    const def = net.trackDef() || TRACKS[0];
+    const mine = net.isHost ? library().filter((d) => d.routeOk !== false) : [];
+    const have = def.custom && !net.isHost && library().some((d) => d.id === def.id);
+    const key = JSON.stringify([s, net.isHost, def.id, net.players.size, mine.map((d) => [d.slot, d.id, d.name]), have]);
+    if (key === this.sideKey) return;
+    this.sideKey = key;
+    clear(this.side);
+    const thumb = trackThumb(def, 320, 180);
+    const trackRow = h('div.lobby-track', thumb, h('div', h('b', def.name), h('span', `${getTheme(def.theme).name} · ${def.laps ? (s.laps || def.laps) + ' laps' : 'Sprint'} · ${(trackInfo(def).track.length / 1000).toFixed(1)} km${def.custom ? ` · custom${def.author ? ' by ' + def.author : ''}` : ''}`)));
+    this.side.append(h('div.panel', h('h3', 'Track'), trackRow));
+    if (def.custom && !net.isHost) {
+      trackRow.append(button(have ? 'In your tracks' : 'Save to my tracks', (e) => { saveToLibrary({ ...def, slot: undefined }); e.currentTarget.textContent = 'Saved'; e.currentTarget.disabled = true; this.ui.toast(`Saved "${def.name}" to your tracks`); }, 'small', { disabled: have }));
+    }
+    if (net.isHost) {
+      const sel = h('select.track-select',
+        h('optgroup', { label: 'Tracks' }, ...TRACKS.map((t, i) => (t.pro ? null : h('option', { value: t.id, selected: t.id === s.trackId }, `${String(i + 1).padStart(2, '0')}  ${t.name}`)))),
+        h('optgroup', { label: 'Pro tracks' }, ...TRACKS.map((t, i) => (t.pro ? h('option', { value: t.id, selected: t.id === s.trackId }, `${String(i + 1).padStart(2, '0')}  ${t.name}`) : null))),
+        mine.length ? h('optgroup', { label: 'My tracks' }, ...mine.map((t) => h('option', { value: 'lib:' + t.slot, selected: t.id === s.trackId }, t.name))) : null);
+      sel.addEventListener('change', () => net.setSetting('trackId', sel.value.startsWith('lib:') ? mine.find((t) => 'lib:' + t.slot === sel.value) : sel.value));
+      const opts = h('div.opts',
+        h('div.opt', h('span', 'Track'), sel),
+        def.laps ? this.stepper('Laps', s.laps || def.laps, 1, 9, (v) => net.setSetting('laps', v)) : null,
+        this.stepper('AI drivers', s.bots || 0, 0, MAX_PLAYERS - net.players.size, (v) => net.setSetting('bots', v)),
+        (s.bots || 0) > 0 ? this.choice('AI skill', ['easy', 'medium', 'hard', 'pro'], s.difficulty, (v) => net.setSetting('difficulty', v)) : null);
+      this.side.firstChild.append(opts);
+    }
   }
 
   stepper(label, value, min, max, set) {

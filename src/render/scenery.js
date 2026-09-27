@@ -2,7 +2,7 @@
 // asteroids and planets around a track. The terrain comes from the shared
 // height field so it matches collision exactly.
 import * as THREE from 'three';
-import { mulberry32, hashString, clamp } from '../util/math.js';
+import { mulberry32, hashString, clamp, makeNoise2D } from '../util/math.js';
 import { makeProp, makeGrandstand, GeoBuilder } from './props.js';
 import { frameAt } from '../track/geometry.js';
 import { makeTerrain } from '../track/terrain.js';
@@ -24,6 +24,18 @@ const PROP_SPEC = {
   crystal: { n: 320, min: 7, scale: [0.8, 2.2], tall: 6 },
   mesa: { n: 26, min: 90, scale: [28, 60], tall: 30, far: true },
   iceberg: { n: 60, min: 25, scale: [2, 5], tall: 6 },
+  jungletree: { n: 1100, min: 9, scale: [0.85, 1.4], tall: 10 },
+  fern: { n: 900, min: 4, scale: [0.8, 1.5], tall: 1.5 },
+  // colors: each instance takes one (the prop's white parts show it)
+  lollipop: { n: 380, min: 7, scale: [0.8, 1.6], tall: 5, colors: [0xff5aa8, 0x5ad8ff, 0xffd23c, 0x9a6aff, 0x6aff9a] },
+  candycane: { n: 260, min: 7, scale: [0.9, 1.6], tall: 5 },
+  gumdrop: { n: 520, min: 5, scale: [0.8, 1.8], tall: 2, colors: [0xff6a9a, 0x6ad8ff, 0xffe06a, 0xb08aff, 0x7aff9a, 0xff9a5a] },
+  // glow: unlit and bright enough to bloom
+  pylon: { n: 170, min: 10, scale: [0.8, 1.8], tall: 8, glow: true, colors: [0xff3df0, 0x39e6ff, 0x9a5cff] },
+  tombstone: { n: 360, min: 5, scale: [0.8, 1.3], tall: 1.5 },
+  cross: { n: 160, min: 5, scale: [0.8, 1.3], tall: 2 },
+  pumpkin: { n: 170, min: 5, scale: [0.7, 1.4], tall: 1, glow: true },
+  stack: { n: 36, min: 26, scale: [0.9, 1.5], tall: 20 },
 };
 
 export function buildScenery(track, theme, { decor = 1, terrain = null } = {}) {
@@ -90,7 +102,7 @@ export function buildScenery(track, theme, { decor = 1, terrain = null } = {}) {
     const base = wg.attributes.position.array.slice();
     // per-facet colour variation: cooling crust on lava, glints on water
     const wc = [];
-    const lavaCols = [0xff5a14, 0xff7a1e, 0xe8400c, 0x5a1a0e, 0xffa030].map((c) => new THREE.Color(c));
+    const lavaCols = (theme.lavaColors || [0xff5a14, 0xff7a1e, 0xe8400c, 0x5a1a0e, 0xffa030]).map((c) => new THREE.Color(c));
     const waterBase = new THREE.Color(theme.waterColor ?? 0x2aa7c9);
     for (let i = 0; i < base.length / 9; i++) {
       const c = lava ? lavaCols[rnd() < 0.18 ? 3 : Math.floor(rnd() * 3) + (rnd() < 0.1 ? 2 : 0)] : waterBase.clone().multiplyScalar(0.9 + rnd() * 0.2);
@@ -159,6 +171,17 @@ export function buildScenery(track, theme, { decor = 1, terrain = null } = {}) {
         placed++;
       }
     }
+  } else if (theme.floaters) {
+    // islands hanging in the sky around the course
+    const n = Math.round(150 * decor);
+    for (let i = 0; i < n; i++) {
+      const [x, z] = randomSpot({ min: 22 });
+      const near = index.nearest(x, z, 50);
+      if (near && near.d < 18) continue;
+      const y = b.minY - 30 + rnd() * (b.maxY - b.minY + 70);
+      const s = 0.7 + Math.pow(rnd(), 2) * 3.2;
+      place(theme.floaters[Math.floor(rnd() * theme.floaters.length)], x, y, z, s, rnd() * Math.PI * 2, 0.85 + rnd() * 0.3);
+    }
   } else {
     // floating asteroids around the course
     const n = Math.round(260 * decor);
@@ -176,21 +199,32 @@ export function buildScenery(track, theme, { decor = 1, terrain = null } = {}) {
   const tintC = new THREE.Color();
   for (const t of tiles.values()) {
     const proto = protos[t.kind] || (protos[t.kind] = makeProp(t.kind, mulberry32(seed ^ hashString(t.kind)), theme.propPalette || {}));
-    const im = new THREE.InstancedMesh(proto, propMat, t.items.length);
-    const floating = ground === 'void';
+    const spec = PROP_SPEC[t.kind] || { tall: 3 };
+    const im = new THREE.InstancedMesh(proto, spec.glow ? glowMat : propMat, t.items.length);
+    const tumbling = ground === 'void' && !theme.floaters;
+    const cols = spec.colors?.map((c) => new THREE.Color(c));
     t.items.forEach(([x, y, z, s, yaw, tint, sy], i) => {
-      e.set(floating ? rnd() * 6 : 0, yaw, floating ? rnd() * 6 : 0);
+      e.set(tumbling ? rnd() * 6 : 0, yaw, tumbling ? rnd() * 6 : 0);
       q.setFromEuler(e);
       m4.compose(pv.set(x, y, z), q, sc.set(s, sy, s));
       im.setMatrixAt(i, m4);
-      im.setColorAt(i, tintC.setScalar(tint));
+      if (cols) tintC.copy(cols[Math.floor(rnd() * cols.length)]).multiplyScalar(tint);
+      else tintC.setScalar(tint);
+      if (spec.glow) tintC.multiplyScalar(1.9);
+      im.setColorAt(i, tintC);
     });
-    const spec = PROP_SPEC[t.kind] || { tall: 3 };
+    const floating = ground === 'void';
     im.castShadow = spec.tall > 1.5 && !floating;
     im.receiveShadow = true;
     im.computeBoundingSphere();
     group.add(im);
   }
+
+  // ---- a sea of clouds under a sky road ----------------------------------------------
+  if (theme.cloudSea) buildCloudSea(group, track, theme, seed);
+
+  // ---- a neon grid over the ground -------------------------------------------------
+  if (theme.gridFloor) buildGridFloor(group, track, theme, heightAt);
 
   // ---- city blocks (night themes) -------------------------------------------------
   if (theme.city) buildCity(group, track, theme, index, heightAt, rnd, decor, propMat, glowMat);
@@ -283,6 +317,54 @@ export function buildScenery(track, theme, { decor = 1, terrain = null } = {}) {
   };
   group.userData.heightAt = heightAt;
   return group;
+}
+
+// Rolling low-poly clouds far below the course: white tops, shaded hollows.
+function buildCloudSea(group, track, theme, seed) {
+  const b = track.bounds;
+  const cs = theme.cloudSea;
+  const noise = makeNoise2D(seed ^ 0x51);
+  const rnd = mulberry32(seed ^ 0x77);
+  const size = Math.max(b.maxX - b.minX, b.maxZ - b.minZ) + 3400;
+  const g = new THREE.PlaneGeometry(size, size, 110, 110).toNonIndexed();
+  g.rotateX(-Math.PI / 2);
+  const p = g.attributes.position.array;
+  const cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
+  for (let i = 0; i < p.length; i += 3) {
+    const x = p[i] + cx, z = p[i + 2] + cz;
+    p[i + 1] = Math.max(0, noise.fbm(x / 160, z / 160, 3) + 0.15) * 34 + noise.fbm(x / 40, z / 40, 2) * 4;
+  }
+  const top = new THREE.Color(cs.color ?? 0xffffff), low = new THREE.Color(cs.shade ?? 0xb8c8e8);
+  const col = [];
+  const c = new THREE.Color();
+  for (let i = 0; i < p.length; i += 9) {
+    const h = (p[i + 1] + p[i + 4] + p[i + 7]) / 3;
+    c.copy(low).lerp(top, clamp(h / 22, 0, 1)).multiplyScalar(0.96 + rnd() * 0.08);
+    for (let v = 0; v < 3; v++) col.push(c.r, c.g, c.b);
+  }
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.computeVertexNormals();
+  const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
+  m.position.set(cx, b.minY - (cs.depth ?? 80), cz);
+  m.name = 'cloudsea';
+  group.add(m);
+}
+
+// Glowing grid lines laid over the terrain, every `step` metres.
+function buildGridFloor(group, track, theme, heightAt) {
+  const b = track.bounds, gf = theme.gridFloor;
+  const step = gf.step ?? 20, reach = gf.reach ?? 700;
+  const x0 = Math.floor((b.minX - reach) / step) * step, x1 = b.maxX + reach;
+  const z0 = Math.floor((b.minZ - reach) / step) * step, z1 = b.maxZ + reach;
+  const pos = [];
+  const seg = (ax, az, bx, bz) => pos.push(ax, heightAt(ax, az) + 0.08, az, bx, heightAt(bx, bz) + 0.08, bz);
+  for (let x = x0; x <= x1; x += step) for (let z = z0; z < z1; z += step) seg(x, z, x, z + step);
+  for (let z = z0; z <= z1; z += step) for (let x = x0; x < x1; x += step) seg(x, z, x + step, z);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  const lines = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: new THREE.Color(gf.color ?? 0xff3df0).multiplyScalar(gf.glow ?? 1.6) }));
+  lines.name = 'gridfloor';
+  group.add(lines);
 }
 
 // Night city: blocks of towers with lit windows around the course plus a
