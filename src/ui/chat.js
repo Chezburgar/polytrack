@@ -47,7 +47,7 @@ export class ChatOverlay {
     if (this.typing) return;
     this.typing = true;
     this.el.classList.add('typing');
-    this.input.placeholder = this.net ? 'Say something - Enter to send, Esc to close' : 'Type a command - Enter to run, Esc to close';
+    this.input.placeholder = this.net ? 'Say something - Enter to send, Esc to close' : 'Enter to send, Esc to close';
     this.app.input.keys.clear(); // let go of the throttle while typing
     this.input.value = '';
     this.input.focus({ preventScroll: true });

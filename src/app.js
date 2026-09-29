@@ -184,7 +184,6 @@ export class App {
     else if (cmd === '/missile') this.prank('missile');
     else if (cmd === '/pitstop') this.prank('pitstop', arg);
     else if (cmd === '/yeet') this.prank('yeet', arg);
-    else this.ui.toast(`Unknown command ${cmd} - try /nuke, /missile, /pitstop <name>, /yeet <name>`, 'err');
     return true;
   }
 
@@ -200,7 +199,7 @@ export class App {
     if (kind !== 'missile') {
       const f = findCar(s, name, me.id);
       if (!f.car) {
-        this.ui.toast(f.list.length ? `/${kind} who? ${name ? `No "${name}" - ` : ''}try: ${f.list.join(', ')}` : 'There is nobody to prank', 'err');
+        this.ui.toast(name ? `No driver called "${name}"` : 'Who?', 'err');
         return;
       }
       target = f.car;
