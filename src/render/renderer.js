@@ -64,7 +64,8 @@ export class Renderer {
     if (!q.bloom) return;
     const rt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: q.samples || 0 });
     const comp = new EffectComposer(this.renderer, rt);
-    comp.addPass(new RenderPass(this.scene, this.camera));
+    this.renderPass = new RenderPass(this.scene, this.camera);
+    comp.addPass(this.renderPass);
     this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.55, 0.5, 1.05);
     comp.addPass(this.bloom);
     comp.addPass(new OutputPass());
@@ -102,5 +103,14 @@ export class Renderer {
   render() {
     if (this.composer) this.composer.render();
     else this.renderer.render(this.scene, this.camera);
+  }
+
+  // draw another scene (a cutscene) through the same post-processing
+  renderScene(scene, camera) {
+    if (!this.composer) { this.renderer.render(scene, camera); return; }
+    const p = this.renderPass;
+    p.scene = scene; p.camera = camera;
+    this.composer.render();
+    p.scene = this.scene; p.camera = this.camera;
   }
 }

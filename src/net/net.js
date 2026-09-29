@@ -133,6 +133,8 @@ export class NetSession {
       case 'car': { const p = this.players.get(id); if (p) { p.car = m.car || p.car; p.name = clean(m.name) || p.name; this._broadcastRoster(); } break; }
       case 'chat': this._relayChat(id, m.text); break;
       case 'nuke': this._hostNuke(id); break;
+      case 'prank': this._hostPrank(id, m.kind, m.target); break;
+      case 'shot': this.t.broadcast({ ...m, by: id }, id); this._shot({ ...m, by: id }); break;
       case 's': this.t.broadcast(m, id); this._remoteState(m); break;
       case 'fin': this._finish(m.id || id, m.time); break;
       default: break;
@@ -277,6 +279,8 @@ export class NetSession {
       }
       case 'chat': this._pushChat(m); break;
       case 'nuke': this._launch(m); break;
+      case 'prank': this.app.applyPrank(m); break;
+      case 'shot': this._shot(m); break;
       case 'start': this._begin(m); break;
       case 's': this._remoteState(m); break;
       case 'fin': this._finish(m.id, m.time, true); break;
@@ -320,6 +324,48 @@ export class NetSession {
     if (!text) return;
     if (this.isHost) this._relayChat(this.selfId, text);
     else this.t.toHost({ t: 'chat', text });
+  }
+
+  // /missile, /pitstop, /yeet: the host checks the limits and starts it for everyone
+  prank(kind, target) {
+    if (this.isHost) this._hostPrank(this.selfId, kind, target);
+    else this.t.toHost({ t: 'prank', kind, target });
+  }
+
+  _hostPrank(id, kind, target) {
+    const s = this.app.session;
+    if (!s || this.state !== 'racing' || s.state !== 'racing' || !['missile', 'pitstop', 'yeet'].includes(kind)) return;
+    const no = (text) => { const w = { t: 'chat', sys: true, text }; if (id === this.selfId) this._pushChat(w); else this.t.send(id, w); };
+    const who = s.entries.find((e) => e.id === target);
+    if (kind !== 'missile' && (!who || who.id === id || who.kind === 'ghost')) return;
+    if (who?.out) return no(`${who.name} is already out.`);
+    const now = performance.now();
+    this.prankUsed = this.prankUsed || new Map();
+    const used = this.prankUsed.get(id) || {};
+    if (kind === 'pitstop' && used.pitstop) return no('One pit stop per race.');
+    const cd = { missile: 30000, yeet: 45000 }[kind];
+    if (cd && now - (used[kind] || -1e9) < cd) return no(`/${kind} is still reloading.`);
+    used[kind] = kind === 'pitstop' ? true : now;
+    this.prankUsed.set(id, used);
+    const m = { t: 'prank', kind, by: id, target: target || null };
+    this.t.broadcast(m);
+    this.app.applyPrank(m);
+    const name = who ? who.name : '';
+    if (kind === 'pitstop') this._sysChat(`🔧 ${name} was called in for a pit stop`);
+    if (kind === 'yeet') this._sysChat(`🐈 ${name} was yeeted to Mars`);
+  }
+
+  // a missile from somebody's launcher: everyone draws it; the target's own
+  // driver decides whether it hits
+  prankShot(by, target, p, v) {
+    const m = { t: 'shot', by, target, p: [r2(p.x), r2(p.y), r2(p.z)], v: [r2(v.x), r2(v.y), r2(v.z)] };
+    if (this.isHost) this.t.broadcast(m); else this.t.toHost(m);
+  }
+
+  _shot(m) {
+    const s = this.app.session;
+    if (!s || !Array.isArray(m.p) || !Array.isArray(m.v)) return;
+    s.pranks.launch(m.by, m.target, new Vector3(...m.p), new Vector3(...m.v));
   }
 
   // /nuke: ask the host, who picks where it lands and starts it for everyone
@@ -385,6 +431,7 @@ export class NetSession {
   _begin(m) {
     this.state = 'racing';
     this.finishes.clear();
+    this.prankUsed = new Map(); // /pitstop: once a race each
     this.firstFinishAt = null;
     this.race = m;
     this.app.startOnlineRace(m);

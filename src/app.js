@@ -16,11 +16,16 @@ import { randomBotCar, BOT_NAMES } from './car/presets.js';
 import { sanitize, buildDef } from './track/custom.js';
 import { RaceIntro } from './game/intro.js';
 import { pickTarget } from './game/nuke.js';
+import { findCar, PITSTOP_TIME, YEET_TIME } from './game/pranks.js';
+import { PitstopScene } from './game/scenes/pitstop.js';
+import { YeetScene } from './game/scenes/yeet.js';
 import { getTheme } from './track/themes.js';
 import { loadCityMap } from './track/maps/index.js';
 
 export const VERSION = '1.0.0';
+const NO_INPUT = { throttle: 0, brake: 0, steer: 0, handbrake: 0, analog: false, lookBack: false };
 export const NUKE_COOLDOWN = 20; // seconds between one player's nukes
+export const PRANK_COOLDOWN = { missile: 30, yeet: 45 }; // /pitstop: once a race
 
 export const DEFAULT_SETTINGS = {
   quality: 'auto', camera: 'chase', fov: 70, units: 'kmh', master: 0.8, music: 0.5, sfx: 0.8,
@@ -164,17 +169,84 @@ export class App {
 
   endSession() {
     if (this.raceIntro) { this.raceIntro.dispose(); this.raceIntro = null; }
+    this.endFilm();
     if (this.session) { this.session.dispose(); this.session = null; }
     this.audio.stopEngines();
   }
 
   // Typed commands from the chat line. Returns true if it was one.
   command(text) {
-    const cmd = text.trim().toLowerCase().split(/\s+/)[0];
+    const [word, ...rest] = text.trim().split(/\s+/);
+    const cmd = word.toLowerCase();
     if (!cmd.startsWith('/')) return false;
+    const arg = rest.join(' ');
     if (cmd === '/nuke') this.nuke();
-    else this.ui.toast(`Unknown command ${cmd}`, 'err');
+    else if (cmd === '/missile') this.prank('missile');
+    else if (cmd === '/pitstop') this.prank('pitstop', arg);
+    else if (cmd === '/yeet') this.prank('yeet', arg);
+    else this.ui.toast(`Unknown command ${cmd} - try /nuke, /missile, /pitstop <name>, /yeet <name>`, 'err');
     return true;
+  }
+
+  // /missile, /pitstop <name>, /yeet <name>: checked here offline, by the host online
+  prank(kind, name = '') {
+    const s = this.session;
+    if (!s || this.mode !== 'race') return;
+    const me = s.player;
+    if (s.state !== 'racing') { this.ui.toast('Wait for the green light'); return; }
+    if (this.cutscene) { this.ui.toast('Wait for the film to finish'); return; }
+    if (!me || me.race.finished || me.out) { this.ui.toast('Not right now'); return; }
+    let target = null;
+    if (kind !== 'missile') {
+      const f = findCar(s, name, me.id);
+      if (!f.car) {
+        this.ui.toast(f.list.length ? `/${kind} who? ${name ? `No "${name}" - ` : ''}try: ${f.list.join(', ')}` : 'There is nobody to prank', 'err');
+        return;
+      }
+      target = f.car;
+      if (target.out) { this.ui.toast(`${target.name} is already out`); return; }
+      if (target.race.finished) { this.ui.toast(`${target.name} has already finished`); return; }
+    }
+    if (s.mode === 'online' && this.net) { this.net.prank(kind, target?.id); return; }
+    const used = s.prankUsed || (s.prankUsed = {});
+    if (kind === 'pitstop' && used.pitstop) { this.ui.toast('One pit stop per race'); return; }
+    const cd = PRANK_COOLDOWN[kind], now = performance.now();
+    if (cd && now - (used[kind] || -1e9) < cd * 1000) { this.ui.toast(`/${kind} reloading - ${Math.ceil(cd - (now - used[kind]) / 1000)} s`); return; }
+    used[kind] = kind === 'pitstop' ? true : now;
+    this.applyPrank({ kind, by: me.id, target: target?.id });
+  }
+
+  // a prank goes off (every client runs it, from the host's message online)
+  applyPrank(m) {
+    const s = this.session;
+    if (!s) return;
+    if (m.kind === 'missile') { s.pranks.arm(m.by); return; }
+    const secs = m.kind === 'pitstop' ? PITSTOP_TIME : YEET_TIME;
+    const e = s.pranks.sendOut(m.target, m.kind, secs);
+    if (!e) return;
+    const name = e.name.replace(/\s*\(AI\)$/, '');
+    if (e === s.player) this.playFilm(m.kind, e, { pauses: false, skippable: false }); // you have to watch
+    else if (s.mode !== 'online' && m.by === s.player?.id) this.playFilm(m.kind, e, { pauses: true, skippable: true }); // watch what you did
+    else this.ui.toast(m.kind === 'yeet' ? `${name} was yeeted to Mars` : `${name} is stuck in a botched pit stop`);
+  }
+
+  playFilm(kind, e, opts) {
+    this.cutscene?.dispose();
+    const Scene = kind === 'pitstop' ? PitstopScene : YeetScene;
+    this.cutscene = new Scene(this, e, opts);
+    this.ui.hudLayer.classList.add('cinema');
+    this.ui.touch.setActive(false);
+    this.audio.setPaused(true); // engines quiet while it plays
+  }
+
+  endFilm() {
+    const c = this.cutscene;
+    if (!c) return;
+    this.cutscene = null;
+    c.dispose();
+    if (!this.raceIntro?.cinematic) this.ui.hudLayer.classList.remove('cinema');
+    if (this.ui.current === 'hud') this.ui.touch.setActive(true);
+    this.audio.setPaused(!!this.session?.paused);
   }
 
   // /nuke: everyone else is blown off the track. Online the host starts it for
@@ -328,6 +400,7 @@ export class App {
   onPause() {
     if (this.mode !== 'race' || !this.session) return;
     if (this.raceIntro?.skip()) return; // Esc during the intro skips it
+    if (this.cutscene) { if (this.cutscene.skippable) this.cutscene.skip(); return; }
     if (this.ui.current === 'results') return;
     if (this.session.mode === 'online') { this.ui.togglePause(); return; }
     const p = !this.session.paused;
@@ -418,6 +491,17 @@ export class App {
     } else if (!this.session) {
       this.renderer.renderer.setClearColor(0x0b101b, 1);
       this.renderer.renderer.clear();
+    } else if (this.session && this.cutscene) {
+      // a film: the race runs on underneath (online) or waits (offline)
+      const c = this.cutscene;
+      if (!c.pauses) {
+        this.session.update(dt, NO_INPUT);
+        if (this.mode === 'race') this.handleEvents();
+        if (this.net) this.net.tick(dt);
+      }
+      c.update(dt);
+      if (this.cutscene === c) this.renderer.renderScene(c.scene, c.camera);
+      if (c.done) this.endFilm();
     } else if (this.session) {
       if (this.raceIntro) {
         this.raceIntro.update(dt); // moves the camera before the frame is drawn

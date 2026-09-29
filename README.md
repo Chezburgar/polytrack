@@ -54,6 +54,22 @@ shockwave throws every other car off the track - you're shielded, and they're pu
 back on the road after the usual 3 s. One at a time; each player can fire one
 every 20 s. Online the host starts it for everybody.
 
+**More commands** (Enter or T in a race; names can be shortened, `/yeet ro`):
+
+- `/missile` - a launcher pops out of your roof for 10 s and locks on to every car
+  it can see ahead, firing homing missiles; a hit sends that car back to its last
+  checkpoint. Reloads in 30 s.
+- `/pitstop <name>` - that driver sits out a 10 s film of a pit stop going wrong
+  (a wheel rolls off, the jack man slips in oil, a tiny spare goes on) and drives
+  the rest of the race on the spare: it pulls to one side, wobbles, and has less
+  grip and power. Once per race.
+- `/yeet <name>` - a giant cat swats them to Mars: a 30 s film of the flight,
+  the crash, building a rocket and flying home, while their car sits out.
+  Reloads in 45 s.
+
+Online the victim watches the film on their own screen; against the AI you watch
+it yourself (the race waits; Space skips).
+
 **Finishing.** Cross the line and your car throws itself into a drift and slides
 to a stop (in slow motion, except online) while the camera swings round and a
 full-screen FINISH (or VICTORY) card shows your place and time; then the results.

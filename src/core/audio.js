@@ -352,6 +352,22 @@ export class AudioEngine {
   play(name) {
     if (!this.ready) return;
     switch (name) {
+      // ---- pranks and their films ----
+      case 'lock': [0, 0.12, 0.24].forEach((w) => this.tone(1760, 0.07, { type: 'square', vol: 0.08, when: w })); break;
+      case 'missile': this.noiseBurst(0.7, { freq: 600, q: 0.8, vol: 0.22, sweep: 3200 }); this.tone(220, 0.5, { type: 'sawtooth', vol: 0.05, glide: 880 }); break;
+      case 'blast': this.noiseBurst(1.4, { freq: 700, q: 0.5, vol: 0.55, type: 'lowpass', sweep: 60 }); this.tone(55, 0.9, { type: 'sine', vol: 0.5, glide: 30 }); break;
+      case 'blastFar': this.noiseBurst(1.2, { freq: 260, q: 0.5, vol: 0.22, type: 'lowpass', sweep: 50 }); break;
+      case 'rev': this.tone(90, 0.9, { type: 'sawtooth', vol: 0.12, glide: 220 }); this.tone(92, 0.9, { type: 'square', vol: 0.05, glide: 225 }); break;
+      case 'wrench': for (let k = 0; k < 7; k++) this.tone(820 + (k % 2) * 60, 0.04, { type: 'square', vol: 0.07, when: k * 0.045 }); break;
+      case 'boing': this.tone(180, 0.45, { type: 'sine', vol: 0.3, glide: 520 }); this.tone(360, 0.3, { type: 'triangle', vol: 0.12, glide: 900, when: 0.08 }); break;
+      case 'slide': this.tone(1400, 0.55, { type: 'sine', vol: 0.18, glide: 260 }); break;
+      case 'clunk': this.noiseBurst(0.25, { freq: 160, q: 1, vol: 0.4, type: 'lowpass' }); this.tone(70, 0.3, { type: 'sine', vol: 0.4, glide: 45 }); break;
+      case 'clank': this.tone(1320, 0.25, { type: 'triangle', vol: 0.14 }); this.tone(1980, 0.18, { type: 'sine', vol: 0.08 }); this.noiseBurst(0.06, { freq: 4000, q: 1, vol: 0.12 }); break;
+      case 'meow': this.tone(520, 0.22, { type: 'sawtooth', vol: 0.09, glide: 900 }); this.tone(900, 0.5, { type: 'sawtooth', vol: 0.09, glide: 380, when: 0.2 }); this.tone(1040, 0.22, { type: 'triangle', vol: 0.08, glide: 1800, when: 0.02 }); break;
+      case 'yeet': this.noiseBurst(1.2, { freq: 400, q: 0.7, vol: 0.4, sweep: 5000 }); this.tone(160, 0.9, { type: 'sawtooth', vol: 0.12, glide: 1200 }); this.noiseBurst(0.12, { freq: 2000, q: 1, vol: 0.4, type: 'highpass' }); break;
+      case 'whoosh': this.noiseBurst(2.2, { freq: 300, q: 0.6, vol: 0.18, sweep: 1600 }); break;
+      case 'crash': this.noiseBurst(1.6, { freq: 900, q: 0.5, vol: 0.6, type: 'lowpass', sweep: 50 }); this.tone(48, 1, { type: 'sine', vol: 0.5, glide: 26 }); this.noiseBurst(0.4, { freq: 3000, q: 0.6, vol: 0.2, type: 'highpass', when: 0.05 }); break;
+      case 'rocket': this.noiseBurst(4.5, { freq: 220, q: 0.5, vol: 0.45, type: 'lowpass', sweep: 900 }); this.tone(60, 3.5, { type: 'sawtooth', vol: 0.08, glide: 110 }); break;
       case 'checkpoint':
         this.tone(NOTE(79), 0.16, { type: 'triangle', vol: 0.22 });
         this.tone(NOTE(86), 0.3, { type: 'triangle', vol: 0.2, when: 0.08 });

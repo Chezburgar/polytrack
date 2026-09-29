@@ -20,6 +20,7 @@ import { TrackLimits, missedGate } from './rules.js';
 import { collideCars } from '../physics/contact.js';
 import { finishDrift, finishSettle } from './finish.js';
 import { Nuke } from './nuke.js';
+import { Pranks } from './pranks.js';
 
 export const DT = 1 / 120;
 const COUNT_RACE = 3.0;
@@ -64,6 +65,7 @@ export class Session {
     this.timeScale = 1; // slow motion for the finish (single player only)
     this.slowmo = null;
     this.nuke = null; // a /nuke in progress
+    this.pranks = new Pranks(this); // /missile, /pitstop, /yeet
     this.loadMs = performance.now() - t0;
 
     let slot = 0;
@@ -186,6 +188,7 @@ export class Session {
       this.nuke.update(dt);
       if (this.nuke.done) { this.nuke.dispose(); this.nuke = null; }
     }
+    this.pranks.update(dt);
     this._render(this.acc / DT, renderDt, input);
   }
 
@@ -221,6 +224,7 @@ export class Session {
     // 1. move everything
     if (racing && (this._trafficT = (this._trafficT || 0) - dt) <= 0) { this._trafficT = 0.1; this._traffic(); }
     for (const e of this.entries) {
+      if (e.car && e.out) { e.prevPos.copy(e.car.pos); e.prevQuat.copy(e.car.quat); continue; } // sitting out
       if (e.car) {
         e.prevPos.copy(e.car.pos);
         e.prevQuat.copy(e.car.quat);
@@ -247,6 +251,7 @@ export class Session {
             else car.input.throttle = Math.min(car.input.throttle, car.forwardSpeed < 22 ? 0.6 : 0);
           }
         }
+        if (e.handicap && racing) this.pranks.steer(e, dt); // the botched pit stop
         const rs = this.track.samples[e.prog.index];
         car.rampLeft = rs.kind === 'K' && rs.road ? rs.l : null;
         car.step(dt);
@@ -265,7 +270,7 @@ export class Session {
     // 3. progress, pads, gates, track limits
     for (const e of this.entries) {
       const car = e.car;
-      if (!car) continue;
+      if (!car || e.out) continue;
       e.prog.update(car.pos);
       const sm = this.track.samples[e.prog.index];
       if (e.finishFx) finishSettle(car, e.finishFx, dt, sm);
@@ -642,6 +647,7 @@ export class Session {
   dispose() {
     this.nuke?.dispose();
     this.nuke = null;
+    this.pranks.dispose();
     for (const e of this.entries) { this.renderer.scene.remove(e.model.group); e.model.dispose(); }
     this.entries = [];
     this.effects.dispose();
