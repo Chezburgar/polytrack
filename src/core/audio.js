@@ -298,6 +298,48 @@ export class AudioEngine {
     this.noiseBurst(0.12, { freq: 400, vol: 0.12 * k, type: 'lowpass' });
   }
 
+  // an air-raid siren wailing up and down for `secs`
+  siren(secs = 3) {
+    if (!this.ready) return;
+    const c = this.ctx, t = c.currentTime;
+    const out = c.createGain();
+    out.gain.setValueAtTime(0.0001, t);
+    out.gain.exponentialRampToValueAtTime(0.28, t + 0.25);
+    out.gain.setValueAtTime(0.28, t + secs - 0.3);
+    out.gain.exponentialRampToValueAtTime(0.0001, t + secs + 0.3);
+    const lp = c.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 2200;
+    lp.connect(out).connect(this.sfx);
+    for (const [type, det] of [['sawtooth', 0], ['square', 6]]) {
+      const o = c.createOscillator();
+      o.type = type;
+      o.detune.value = det;
+      const f = o.frequency;
+      f.setValueAtTime(220, t);
+      // wail: up, hold, down, up again
+      for (let k = 0, at = t; at < t + secs; k++, at += 1.5) {
+        f.linearRampToValueAtTime(820, at + 0.7);
+        f.linearRampToValueAtTime(760, at + 1.0);
+        f.linearRampToValueAtTime(380, at + 1.5);
+      }
+      const g = c.createGain();
+      g.gain.value = type === 'square' ? 0.35 : 0.6;
+      o.connect(g).connect(lp);
+      o.start(t);
+      o.stop(t + secs + 0.4);
+    }
+  }
+
+  // the explosion: a crack, a huge low boom, and a rumble that rolls on
+  nukeBoom() {
+    if (!this.ready) return;
+    this.noiseBurst(0.5, { freq: 2600, q: 0.4, vol: 0.5, type: 'highpass' });
+    this.noiseBurst(5, { freq: 900, q: 0.5, vol: 0.9, type: 'lowpass', sweep: 40 });
+    this.tone(42, 3.2, { type: 'sine', vol: 0.8, glide: 22 });
+    this.tone(64, 1.6, { type: 'triangle', vol: 0.35, glide: 30 });
+    this.noiseBurst(7, { freq: 120, q: 0.7, vol: 0.45, sweep: 50, when: 1.2 });
+  }
+
   // thunder: a long low rumble, with a crack first when the strike was close
   thunder(dist = 500) {
     if (!this.ready) return;

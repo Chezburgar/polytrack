@@ -47,6 +47,13 @@ put back, or has finished, is see-through and passes through others until it
 is clear). Online, each player's car is shown where it is now, not where it
 was, so contact lines up with what you see.
 
+**/nuke.** In any race, press Enter or T and type `/nuke` (it never shows in
+chat). An air-raid siren and a red alert, a bomb falling on the rival nearest
+you, then a wide shot of the flash, the fireball and the mushroom cloud while the
+shockwave throws every other car off the track - you're shielded, and they're put
+back on the road after the usual 3 s. One at a time; each player can fire one
+every 20 s. Online the host starts it for everybody.
+
 **Finishing.** Cross the line and your car throws itself into a drift and slides
 to a stop (in slow motion, except online) while the camera swings round and a
 full-screen FINISH (or VICTORY) card shows your place and time; then the results.

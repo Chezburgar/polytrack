@@ -8,6 +8,8 @@ import { sanitize, shareable } from '../track/custom.js';
 import { BOT_NAMES, randomBotCar } from '../car/presets.js';
 import { mulberry32 } from '../util/math.js';
 import { INTRO_LENGTH } from '../game/intro.js';
+import { pickTarget } from '../game/nuke.js';
+import { Vector3 } from 'three';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const MAX_PLAYERS = 8;
@@ -130,6 +132,7 @@ export class NetSession {
       case 'ready': { const p = this.players.get(id); if (p) { p.ready = !!m.ready; this._broadcastRoster(); } break; }
       case 'car': { const p = this.players.get(id); if (p) { p.car = m.car || p.car; p.name = clean(m.name) || p.name; this._broadcastRoster(); } break; }
       case 'chat': this._relayChat(id, m.text); break;
+      case 'nuke': this._hostNuke(id); break;
       case 's': this.t.broadcast(m, id); this._remoteState(m); break;
       case 'fin': this._finish(m.id || id, m.time); break;
       default: break;
@@ -273,6 +276,7 @@ export class NetSession {
         break;
       }
       case 'chat': this._pushChat(m); break;
+      case 'nuke': this._launch(m); break;
       case 'start': this._begin(m); break;
       case 's': this._remoteState(m); break;
       case 'fin': this._finish(m.id, m.time, true); break;
@@ -316,6 +320,36 @@ export class NetSession {
     if (!text) return;
     if (this.isHost) this._relayChat(this.selfId, text);
     else this.t.toHost({ t: 'chat', text });
+  }
+
+  // /nuke: ask the host, who picks where it lands and starts it for everyone
+  nuke() {
+    if (this.isHost) this._hostNuke(this.selfId);
+    else this.t.toHost({ t: 'nuke' });
+  }
+
+  _hostNuke(id) {
+    const s = this.app.session;
+    if (!s || this.state !== 'racing' || s.state !== 'racing' || s.nuke) return;
+    const now = performance.now();
+    this.nukeTimes = this.nukeTimes || new Map();
+    if (now - (this.nukeTimes.get(id) ?? -1e9) < 20000) {
+      const warn = { t: 'chat', sys: true, text: 'Your nuke is still reloading.' };
+      if (id === this.selfId) this._pushChat(warn); else this.t.send(id, warn);
+      return;
+    }
+    this.nukeTimes.set(id, now);
+    const p = pickTarget(s, id);
+    const m = { t: 'nuke', by: id, p: [r2(p.x), r2(p.y), r2(p.z)] };
+    this.t.broadcast(m);
+    this._launch(m);
+    this._sysChat('☢ Nuclear launch detected');
+  }
+
+  _launch(m) {
+    const s = this.app.session;
+    if (!s || !Array.isArray(m.p)) return;
+    s.launchNuke(m.by, new Vector3(...m.p));
   }
 
   _relayChat(id, text) {

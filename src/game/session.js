@@ -19,6 +19,7 @@ import { clamp } from '../util/math.js';
 import { TrackLimits, missedGate } from './rules.js';
 import { collideCars } from '../physics/contact.js';
 import { finishDrift, finishSettle } from './finish.js';
+import { Nuke } from './nuke.js';
 
 export const DT = 1 / 120;
 const COUNT_RACE = 3.0;
@@ -62,6 +63,7 @@ export class Session {
     this.hold = false; // parked on the grid through the pre-race intro: the countdown waits
     this.timeScale = 1; // slow motion for the finish (single player only)
     this.slowmo = null;
+    this.nuke = null; // a /nuke in progress
     this.loadMs = performance.now() - t0;
 
     let slot = 0;
@@ -180,6 +182,10 @@ export class Session {
       steps++;
     }
     if (steps >= maxSteps) this.acc = 0;
+    if (this.nuke) {
+      this.nuke.update(dt);
+      if (this.nuke.done) { this.nuke.dispose(); this.nuke = null; }
+    }
     this._render(this.acc / DT, renderDt, input);
   }
 
@@ -626,7 +632,16 @@ export class Session {
     return this.recorder.encode({ time: this.player.race.finishTime, custom: this.player.custom, name: this.player.name });
   }
 
+  // /nuke from player `by`, landing at `at`; one at a time
+  launchNuke(by, at) {
+    if (this.nuke || this.state !== 'racing') return false;
+    this.nuke = new Nuke(this, { by, at });
+    return true;
+  }
+
   dispose() {
+    this.nuke?.dispose();
+    this.nuke = null;
     for (const e of this.entries) { this.renderer.scene.remove(e.model.group); e.model.dispose(); }
     this.entries = [];
     this.effects.dispose();

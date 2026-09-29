@@ -1,6 +1,8 @@
 // In-race chat for online rooms: the last few messages over the HUD (they fade
 // after a while), and a line to type in - Enter or T opens it, Enter sends,
-// Esc closes. Driving keys are released while you type.
+// Esc closes. Driving keys are released while you type. Lines starting with /
+// are commands (/nuke) and never reach the chat; offline races open the line
+// for commands only.
 import { h } from './dom.js';
 
 const SHOW_FOR = 9; // seconds a message stays up when you're not typing
@@ -42,9 +44,10 @@ export class ChatOverlay {
   }
 
   open() {
-    if (!this.net || this.typing) return;
+    if (this.typing) return;
     this.typing = true;
     this.el.classList.add('typing');
+    this.input.placeholder = this.net ? 'Say something - Enter to send, Esc to close' : 'Type a command - Enter to run, Esc to close';
     this.app.input.keys.clear(); // let go of the throttle while typing
     this.input.value = '';
     this.input.focus({ preventScroll: true });
@@ -59,8 +62,10 @@ export class ChatOverlay {
 
   send() {
     const text = this.input.value.trim();
-    if (text && this.net) this.net.chat(text);
     this.input.value = '';
+    if (!text) return;
+    if (this.app.command(text)) return; // commands stay private
+    if (this.net) this.net.chat(text);
   }
 
   update(dt) {

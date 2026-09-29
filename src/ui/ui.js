@@ -74,8 +74,9 @@ export class UI {
       clear(this.hudLayer);
       this.hudLayer.append(this.hud.el);
       this.hud.attach(this.app.session);
-      if (this.app.session?.mode === 'online' && this.app.net) { this.hudLayer.append(this.chat.el); this.chat.attach(this.app.net); }
-      else this.chat.detach();
+      // the chat line: online chat, and commands in every race
+      this.hudLayer.append(this.chat.el);
+      this.chat.attach(this.app.session?.mode === 'online' ? this.app.net : null);
       return;
     }
     if (name !== 'results') this.chat.detach();

@@ -15,10 +15,12 @@ import { mulberry32 } from './util/math.js';
 import { randomBotCar, BOT_NAMES } from './car/presets.js';
 import { sanitize, buildDef } from './track/custom.js';
 import { RaceIntro } from './game/intro.js';
+import { pickTarget } from './game/nuke.js';
 import { getTheme } from './track/themes.js';
 import { loadCityMap } from './track/maps/index.js';
 
 export const VERSION = '1.0.0';
+export const NUKE_COOLDOWN = 20; // seconds between one player's nukes
 
 export const DEFAULT_SETTINGS = {
   quality: 'auto', camera: 'chase', fov: 70, units: 'kmh', master: 0.8, music: 0.5, sfx: 0.8,
@@ -63,7 +65,12 @@ export class App {
     window.addEventListener('resize', () => this.renderer.resize());
     this.input.on('pause', () => this.onPause());
     // online: Enter / T opens the chat line (after this key event, so the T isn't typed)
-    this.input.on('chat', () => { if (this.mode === 'race' && this.session?.mode === 'online' && this.net) setTimeout(() => this.ui.chat.open(), 0); });
+    // Enter / T opens the chat line online; in any other race it takes commands (/nuke)
+    this.input.on('chat', () => {
+      const s = this.session;
+      if (this.mode !== 'race' || !s || this.ui.current !== 'hud' || (s.paused && s.mode !== 'online')) return;
+      setTimeout(() => this.ui.chat.open(), 0);
+    });
     this.input.on('restart', () => { if (this.mode === 'race' && this.session?.mode === 'timetrial' && !this.session.paused) this.restartRace(); });
     this.input.on('camera', () => {
       if (this.mode !== 'race' || !this.session || this.raceIntro?.cinematic) return;
@@ -159,6 +166,28 @@ export class App {
     if (this.raceIntro) { this.raceIntro.dispose(); this.raceIntro = null; }
     if (this.session) { this.session.dispose(); this.session = null; }
     this.audio.stopEngines();
+  }
+
+  // Typed commands from the chat line. Returns true if it was one.
+  command(text) {
+    const cmd = text.trim().toLowerCase().split(/\s+/)[0];
+    if (!cmd.startsWith('/')) return false;
+    if (cmd === '/nuke') this.nuke();
+    else this.ui.toast(`Unknown command ${cmd}`, 'err');
+    return true;
+  }
+
+  // /nuke: everyone else is blown off the track. Online the host starts it for
+  // everybody; offline it goes off here.
+  nuke() {
+    const s = this.session;
+    if (!s || this.mode !== 'race') return;
+    if (s.state !== 'racing') { this.ui.toast('Wait for the green light'); return; }
+    if (s.nuke) { this.ui.toast('One nuke at a time'); return; }
+    if (s.mode === 'online' && this.net) { this.net.nuke(); return; }
+    const now = performance.now();
+    if (now - (this._lastNuke || -1e9) < NUKE_COOLDOWN * 1000) { this.ui.toast(`Nuke reloading - ${Math.ceil(NUKE_COOLDOWN - (now - this._lastNuke) / 1000)} s`); return; }
+    if (s.launchNuke(s.player.id, pickTarget(s, s.player.id))) this._lastNuke = now;
   }
 
   // a track in a real town fetches its map data first (buildings, streets)

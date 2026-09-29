@@ -514,6 +514,25 @@ kbd.pad { background: rgba(57,198,240,0.14); color: #9fe6ff; }
   .be-top h1 { display: none; }
 }
 
+/* ---------- /nuke ---------- */
+.nuke-fx { position: fixed; inset: 0; z-index: 25; pointer-events: none; font-style: italic; }
+.nuke-fx.leave { opacity: 0; transition: opacity 0.5s; }
+.nk-vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 50%, rgba(255,0,0,0) 45%, rgba(220,0,0,0.55) 100%); animation: nkPulse 0.5s ease-in-out infinite alternate; }
+.nuke-fx.boom .nk-vignette { animation: none; opacity: 0; transition: opacity 1s; }
+.nk-banner { position: absolute; left: 0; right: 0; top: 16vh; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 0 12px; background: repeating-linear-gradient(-45deg, rgba(255,210,40,0.92) 0 26px, rgba(20,20,20,0.92) 26px 52px); animation: nkBlink 0.5s steps(2, jump-none) infinite; }
+.nk-banner b { font-size: clamp(22px, 3.4vw, 44px); font-weight: 900; letter-spacing: 3px; color: #fff; background: #b00; padding: 4px 18px; text-shadow: 0 2px 8px #000; }
+.nk-banner span { font-size: clamp(12px, 1.3vw, 17px); font-weight: 900; letter-spacing: 4px; color: #fff; background: rgba(0,0,0,0.75); padding: 2px 12px; font-style: normal; }
+.nuke-fx.boom .nk-banner { display: none; }
+.nk-count { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); font-size: clamp(80px, 14vw, 180px); font-weight: 900; color: #ff3a2a; text-shadow: 0 0 30px rgba(255,40,20,0.8), 0 6px 20px #000; }
+.nk-flash { position: absolute; inset: 0; background: #fff8e8; opacity: 0; }
+.nuke-fx.boom .nk-flash { animation: nkFlash 1.5s ease-out forwards; }
+.nk-after { position: absolute; left: 50%; top: 30%; transform: translate(-50%, -50%) scale(1.6); opacity: 0; font-size: clamp(44px, 7vw, 96px); font-weight: 900; letter-spacing: 4px; color: #ffd23c; text-shadow: 0 0 24px rgba(255,120,20,0.8), 0 6px 20px #000; white-space: nowrap; }
+.nuke-fx.boom .nk-after { animation: nkAfter 3.2s ease-out 0.5s forwards; }
+@keyframes nkPulse { from { opacity: 0.35; } to { opacity: 1; } }
+@keyframes nkBlink { 0% { opacity: 1; } 100% { opacity: 0.55; } }
+@keyframes nkFlash { 0% { opacity: 1; } 10% { opacity: 0.95; } 100% { opacity: 0; } }
+@keyframes nkAfter { 0% { opacity: 0; transform: translate(-50%, -50%) scale(1.6); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 75% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1); } }
+
 /* ---------- pre-race intro ---------- */
 .intro { position: fixed; inset: 0; z-index: 30; font-style: italic; cursor: pointer; }
 .intro.waiting, .intro.leave { pointer-events: none; cursor: default; }
