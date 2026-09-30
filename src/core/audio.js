@@ -389,6 +389,8 @@ export class AudioEngine {
       case 'hitmark': this.tone(2600, 0.05, { type: 'square', vol: 0.07 }); this.tone(3400, 0.05, { type: 'square', vol: 0.05, when: 0.03 }); break;
       // /superyeet: the UFO and the aliens
       case 'ufo': this.tone(300, 3, { type: 'sine', vol: 0.12, glide: 900 }); for (let k = 0; k < 12; k++) this.tone(k % 2 ? 620 : 540, 0.25, { type: 'sine', vol: 0.08, when: k * 0.25 }); break;
+      // /pitstopnuke: two warning beeps, a green whump, a geiger counter going mad
+      case 'tyrenuke': [0, 0.14].forEach((w) => this.tone(1320, 0.08, { type: 'square', vol: 0.08, when: w })); this.noiseBurst(1.1, { freq: 500, q: 0.5, vol: 0.45, type: 'lowpass', sweep: 60, when: 0.3 }); this.tone(70, 0.8, { type: 'sine', vol: 0.4, glide: 35, when: 0.3 }); for (let k = 0; k < 22; k++) this.noiseBurst(0.012, { freq: 3500, q: 1, vol: 0.14, type: 'highpass', when: 0.5 + k * 0.05 + Math.random() * 0.04 }); break;
       case 'alien': [88, 93, 84, 96, 91].forEach((n, i) => this.tone(NOTE(n), 0.08, { type: 'square', vol: 0.06, glide: NOTE(n + (i % 2 ? -5 : 5)), when: i * 0.09 })); break;
       case 'checkpoint':
         this.tone(NOTE(79), 0.16, { type: 'triangle', vol: 0.22 });

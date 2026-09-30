@@ -16,24 +16,7 @@ export class PitstopScene extends Cutscene {
     this.name = (victim.name || 'Racer').replace(/\s*\(AI\)$/, '');
     const paint = victim.custom?.paint || '#e8433a';
     const sc = this.scene;
-    sc.background = new THREE.Color(0xb8cce0);
-    sc.fog = new THREE.Fog(0xb8cce0, 60, 160);
-    // ---- the pit lane and the garage --------------------------------------------------
-    const lane = box(140, 0.2, 30, 0x55585f, 0, -0.1, 0);
-    sc.add(lane);
-    for (const z of [-4.6, 4.6]) sc.add(box(140, 0.02, 0.18, 0xf2f2f2, 0, 0.01, z));
-    for (const [x, z, w, d] of [[0, -3.2, 9, 0.2], [0, 3.2, 9, 0.2], [-4.5, 0, 0.2, 6.4], [4.5, 0, 0.2, 6.4]]) sc.add(box(w, 0.03, d, 0xffd23c, x, 0.02, z));
-    const team = new THREE.MeshLambertMaterial({ color: paint, flatShading: true });
-    sc.add(box(30, 7, 0.4, 0xd8dbe0, 0, 3.5, -9.5), box(0.4, 7, 6, 0xc8ccd2, -15, 3.5, -6.5), box(0.4, 7, 6, 0xc8ccd2, 15, 3.5, -6.5), box(31, 0.4, 7, 0x8a8e96, 0, 7.1, -6.5));
-    sc.add(box(30, 1.2, 0.3, team, 0, 5.8, -9.2));
-    const banner = textPanel([`TEAM ${this.name.toUpperCase()}`], 12, 1.1, { bg: '#1a1d24', fg: '#ffffff' });
-    banner.position.set(0, 5.8, -9.0);
-    sc.add(banner);
-    for (const [x, n] of [[-11, 5], [-9.4, 4], [10, 5], [11.6, 3]]) {
-      for (let i = 0; i < n; i++) { const t = tube(0.7, 0.7, 0.55, 0x1a1a1a, 12); t.position.set(x, 0.3 + i * 0.56, -7.6); sc.add(t); }
-    }
-    sc.add(box(1.6, 1.1, 0.8, 0xc83a2a, -6, 0.55, -7.8), box(1.1, 2.6, 0.9, 0x3a3d44, 7, 1.3, -8));
-    sc.add(box(140, 1, 0.5, 0xb8b4ac, 0, 0.5, 9)); // pit wall
+    pitLane(sc, paint, `TEAM ${this.name.toUpperCase()}`);
     // ---- the car ---------------------------------------------------------------------
     const model = (this.model = buildCar(victim.custom, { shadows: false }));
     model.group.rotation.y = Math.PI / 2; // nose along +x
@@ -189,13 +172,22 @@ export class PitstopScene extends Cutscene {
   }
 }
 
-// the wobbly car's spare, as the other racers see it: a small yellow wheel
-export function fitSpare(model) {
-  const w = model.wheels[RR];
-  if (!w || w.spin.userData.spare) return;
-  w.spin.userData.spare = true;
-  w.spin.scale.multiplyScalar(0.62);
-  w.spin.material = new THREE.MeshLambertMaterial({ color: 0xffd23c, flatShading: true });
-  model.materials.push(w.spin.material);
-  w.spin.position.y = -0.13; // sit the smaller wheel on the ground
+// the pit lane and the team's garage (the car stops at the origin, nose along +x)
+export function pitLane(sc, paint, title, { bg = '#1a1d24', fg = '#ffffff' } = {}) {
+  sc.background = new THREE.Color(0xb8cce0);
+  sc.fog = new THREE.Fog(0xb8cce0, 60, 160);
+  sc.add(box(140, 0.2, 30, 0x55585f, 0, -0.1, 0));
+  for (const z of [-4.6, 4.6]) sc.add(box(140, 0.02, 0.18, 0xf2f2f2, 0, 0.01, z));
+  for (const [x, z, w, d] of [[0, -3.2, 9, 0.2], [0, 3.2, 9, 0.2], [-4.5, 0, 0.2, 6.4], [4.5, 0, 0.2, 6.4]]) sc.add(box(w, 0.03, d, 0xffd23c, x, 0.02, z));
+  const team = new THREE.MeshLambertMaterial({ color: paint, flatShading: true });
+  sc.add(box(30, 7, 0.4, 0xd8dbe0, 0, 3.5, -9.5), box(0.4, 7, 6, 0xc8ccd2, -15, 3.5, -6.5), box(0.4, 7, 6, 0xc8ccd2, 15, 3.5, -6.5), box(31, 0.4, 7, 0x8a8e96, 0, 7.1, -6.5));
+  sc.add(box(30, 1.2, 0.3, team, 0, 5.8, -9.2));
+  const banner = textPanel([title], 12, 1.1, { bg, fg });
+  banner.position.set(0, 5.8, -9.0);
+  sc.add(banner);
+  for (const [x, n] of [[-11, 5], [-9.4, 4], [10, 5], [11.6, 3]]) {
+    for (let i = 0; i < n; i++) { const t = tube(0.7, 0.7, 0.55, 0x1a1a1a, 12); t.position.set(x, 0.3 + i * 0.56, -7.6); sc.add(t); }
+  }
+  sc.add(box(1.6, 1.1, 0.8, 0xc83a2a, -6, 0.55, -7.8), box(1.1, 2.6, 0.9, 0x3a3d44, 7, 1.3, -8));
+  sc.add(box(140, 1, 0.5, 0xb8b4ac, 0, 0.5, 9)); // pit wall
 }

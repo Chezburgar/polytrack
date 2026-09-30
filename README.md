@@ -63,6 +63,14 @@ every 20 s. Online the host starts it for everybody.
   (a wheel rolls off, the jack man slips in oil, a tiny spare goes on) and drives
   the rest of the race on the spare: it pulls to one side, wobbles, and has less
   grip and power. Once per race.
+- `/pitstop pro` - a pit stop done right: a 6 s film of a black-and-gold crew
+  changing all four wheels in under two seconds, then you launch out on gold
+  tyres for the rest of the race - 30% more grip, 40% more power, a higher top
+  speed (and any bad tyres are fixed). Once per race.
+- `/pitstopnuke <name>` - their wheels are blown off and four wrong ones go on (a
+  square one, a tiny one, an oval one and a shopping-trolley wheel): about half the
+  power, very little grip, and the car pulls, wobbles and thumps for the rest of the
+  race. Once per race.
 - `/yeet <name>` - a giant cat swats them to Mars: a 30 s film of the flight,
   the crash, building a rocket and flying home, while their car sits out.
   Reloads in 45 s.

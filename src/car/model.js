@@ -184,7 +184,7 @@ function loft(def, colors) {
 }
 
 // ---- wheels -------------------------------------------------------------------
-function wheelGeometry(style, rimColor) {
+export function wheelGeometry(style, rimColor) {
   const s = new Soup();
   const R = WHEEL_R, W = 0.28;
   const tread = 0x1b1c20, wall = 0x2b2c31;

@@ -334,20 +334,21 @@ export class NetSession {
 
   _hostPrank(id, kind, target) {
     const s = this.app.session;
-    if (!s || this.state !== 'racing' || s.state !== 'racing' || !['missile', 'pitstop', 'yeet', 'crash', 'precalc', 'advertisement', 'fly', 'fullbox', 'superyeet'].includes(kind)) return;
+    if (!s || this.state !== 'racing' || s.state !== 'racing' || !['missile', 'pitstop', 'yeet', 'crash', 'precalc', 'advertisement', 'fly', 'fullbox', 'superyeet', 'pitpro', 'pitnuke'].includes(kind)) return;
     const no = (text) => { const w = { t: 'chat', sys: true, text }; if (id === this.selfId) this._pushChat(w); else this.t.send(id, w); };
     const who = s.entries.find((e) => e.id === target);
-    const self = kind === 'missile' || kind === 'fly';
+    const self = kind === 'missile' || kind === 'fly' || kind === 'pitpro';
     if (!self && (!who || who.id === id || who.kind === 'ghost')) return;
+    if (kind === 'pitpro' && s.entries.find((e) => e.id === id)?.out) return;
     const now = performance.now();
     if (who && (who.out || who.remoteFx || who.fx || who.quiz || now - (who.boxedAt ?? -1e9) < 1600)) return no(`${who.name} is already busy.`);
     this.prankUsed = this.prankUsed || new Map();
     const used = this.prankUsed.get(id) || {};
-    if (kind === 'pitstop' && used.pitstop) return no('One pit stop per race.');
-    if (kind === 'superyeet' && used.superyeet) return no('One super yeet per race.');
+    const once = { pitstop: 'One pit stop per race.', superyeet: 'One super yeet per race.', pitpro: 'One pro pit stop per race.', pitnuke: 'One pit stop nuke per race.' }[kind];
+    if (once && used[kind]) return no(once);
     const cd = { missile: 30000, yeet: 45000, crash: 40000, precalc: 30000, advertisement: 60000, fly: 30000, fullbox: 40000 }[kind];
     if (cd && now - (used[kind] || -1e9) < cd) return no(`/${kind} is still reloading.`);
-    used[kind] = kind === 'pitstop' || kind === 'superyeet' ? true : now;
+    used[kind] = once ? true : now;
     if (kind === 'fullbox') who.boxedAt = now;
     this.prankUsed.set(id, used);
     const m = { t: 'prank', kind, by: id, target: target || null };
@@ -363,6 +364,8 @@ export class NetSession {
     if (kind === 'fly') this._sysChat(`🪽 ${byName} grew wings`);
     if (kind === 'fullbox') this._sysChat(`🎯 ${byName} fullboxed ${name}`);
     if (kind === 'superyeet') this._sysChat(`🚀 ${name} was super yeeted to Pluto`);
+    if (kind === 'pitpro') this._sysChat(`🏁 ${byName} is in for a pro pit stop`);
+    if (kind === 'pitnuke') this._sysChat(`☢️ ${byName} nuked ${name}'s tyres`);
   }
 
   // a missile from somebody's launcher: everyone draws it; the target's own

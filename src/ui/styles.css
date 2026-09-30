@@ -602,6 +602,11 @@ kbd.pad { background: rgba(57,198,240,0.14); color: #9fe6ff; }
   linear-gradient(#ff3a2a, #ff3a2a) bottom left / 16px 3px no-repeat, linear-gradient(#ff3a2a, #ff3a2a) bottom left / 3px 16px no-repeat,
   linear-gradient(#ff3a2a, #ff3a2a) bottom right / 16px 3px no-repeat, linear-gradient(#ff3a2a, #ff3a2a) bottom right / 3px 16px no-repeat;
   filter: drop-shadow(0 0 6px rgba(255,40,20,0.8)); }
+/* /pitstop pro: the stopwatch */
+.pit-timer { position: absolute; left: 50%; bottom: 17%; transform: translateX(-50%); padding: 4px 18px; background: rgba(10,10,14,0.85); border: 2px solid #ffc83a; color: #ffc83a; font: 900 clamp(26px, 3.4vw, 44px) ui-monospace, Consolas, monospace; letter-spacing: 2px; opacity: 0; transition: opacity 0.2s; }
+.pit-timer.on { opacity: 1; }
+.pit-timer.done { color: #2cf06a; border-color: #2cf06a; }
+.pit-timer::after { content: ' s'; font-size: 0.55em; }
 /* /fullbox: the damage number over the car, a hitmarker and the caller's callout */
 .fb-dmg { position: absolute; left: 0; top: 0; font-size: clamp(30px, 3.6vw, 48px); font-weight: 900; font-style: italic; color: #ffd23c; -webkit-text-stroke: 2px #1a1206; text-shadow: 0 3px 0 #1a1206, 0 0 18px rgba(255,200,40,0.7); white-space: nowrap; }
 .fb-hit { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; transform: translate(-50%, -50%) rotate(45deg); background:

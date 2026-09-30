@@ -7,6 +7,10 @@
 //  /yeet <name>     that car sits out 30 s (swatted to Mars by a cat)
 //  /superyeet <name> sits out 60 s (punched to Pluto; once per race)
 //  /fly             your own car grows wings and flies for 10 s
+//  /pitstop pro     your own car sits out a 6 s pit stop done right and comes out
+//                   on gold tyres: much more grip and power (once per race)
+//  /pitstopnuke <name>  their wheels are blown off and four wrong ones go on:
+//                   slow and nearly undrivable (once per race)
 //  /fullbox <name>  walls and a roof go up round that car, a shot, and it's a
 //                   wreck to be rebuilt
 // Every client runs the same pranks from the host's messages. Whoever drives a
@@ -15,7 +19,7 @@
 import * as THREE from 'three';
 import { h } from '../ui/dom.js';
 import { clamp, mulberry32, smoothstep } from '../util/math.js';
-import { fitSpare } from './scenes/pitstop.js';
+import { TYRES, tyreSpec, tyreLook } from './tyres.js';
 import { Quiz, Rebuild, makeQuestion, QUIZ_TIME } from './wreck.js';
 import { makeWings, animateWings, FLY_TIME } from './fly.js';
 
@@ -24,6 +28,7 @@ export const PITSTOP_TIME = 10;
 export const YEET_TIME = 30;
 export const AD_TIME = 30;
 export const SUPERYEET_TIME = 60;
+export const PITPRO_TIME = 6;
 const BOX_SHOT = 1.25; // walls up, then the shot
 export const AI_REBUILD = 25; // an AI's rebuild takes this long
 const BURN_TIME = 6; // wrong answer -> boom
@@ -61,6 +66,7 @@ export class Pranks {
     this.fx = []; // little one-off effects: (dt) => true when finished
     this.woodMats = [0xb8834a, 0xa06a38, 0xc8945a].map((c) => new THREE.MeshLambertMaterial({ color: c, flatShading: true }));
     this.tracerMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xfff0a0).multiplyScalar(3), transparent: true });
+    this.radMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0x9aff4a).multiplyScalar(2.4), transparent: true });
     this.flameMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffa040).multiplyScalar(3) });
     this.boomMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffb050).multiplyScalar(2.6), transparent: true });
   }
@@ -151,7 +157,7 @@ export class Pranks {
     if (e.car) {
       // back on the road where it left it, from a standstill
       const r = e.limits.placement('flip', e.prog, s.loaded.speeds);
-      e.car.reset(r.pos, r.quat, 0);
+      e.car.reset(r.pos, r.quat, kind === 'pitpro' ? 26 : 0); // a pro stop launches you out
       e.prevPos.copy(r.pos); e.prevQuat.copy(r.quat);
       e.prog.reset(r.index ?? e.prog.index);
       e.prog.update(e.car.pos);
@@ -159,10 +165,11 @@ export class Pranks {
       e.ghostUntil = s.clock + 2;
       if (e === s.focus) s.camera.snap(s._camTarget(e));
     }
-    if (kind === 'pitstop') this.damage(e);
+    if (kind === 'pitstop') this.setTyres(e, 'spare');
+    if (kind === 'pitpro') { this.setTyres(e, 'pro'); if (e.car) e.car.boost = Math.max(e.car.boost || 0, 1.35); }
     if (kind === 'wreck') { e.fx = 0; if (e.car && e.burnSpec) { e.car.spec = e.burnSpec; e.burnSpec = null; } }
     if (e === s.player && this.app.cutscene && !this.app.cutscene.pauses) this.app.endFilm(); // your car's back: so are you
-    if (e === s.player) s.message({ yeet: 'BACK FROM MARS', superyeet: 'BACK FROM PLUTO', wreck: 'REBUILT - GO GO GO', advertisement: 'THANKS FOR WATCHING' }[kind] || 'OUT OF THE PITS - HANDLING DAMAGED', 'warn', 2.5);
+    if (e === s.player) s.message({ yeet: 'BACK FROM MARS', superyeet: 'BACK FROM PLUTO', pitpro: 'PRO TYRES ON', wreck: 'REBUILT - GO GO GO', advertisement: 'THANKS FOR WATCHING' }[kind] || 'OUT OF THE PITS - HANDLING DAMAGED', 'warn', 2.5);
   }
 
   // ---- /crash ---------------------------------------------------------------------------
@@ -372,6 +379,17 @@ export class Pranks {
       const fx = e.car ? e.fx || 0 : e.remoteFx || 0;
       if (e.kind === 'remote' && fx === 2 && e.lastFx !== 2 && !(s.clock - (e.boomedAt ?? -9) < 4)) this.boom(e.model.group.position, 1.3);
       e.lastFx = fx;
+      if (e.tyres === 'pro' && e.model.group.visible && Math.random() < dt * 10) {
+        const w = e.model.wheels[(Math.random() * 4) | 0];
+        const sp = e.car ? e.car.speed : e.vel ? e.vel.length() : 0;
+        if (sp > 12) s.effects.spark(w.spin.getWorldPosition(_c), _b.set((Math.random() - 0.5) * 2, 1 + Math.random() * 2, (Math.random() - 0.5) * 2));
+      }
+      // junk tyres smoke, and the square one scrapes
+      if (e.tyres === 'junk' && e.model.group.visible) {
+        const sp = e.car ? e.car.speed : e.vel ? e.vel.length() : 0;
+        if (sp > 6 && Math.random() < dt * 9) s.effects.puff(e.model.wheels[(Math.random() * 4) | 0].spin.getWorldPosition(_c), _b.set((Math.random() - 0.5), 1, (Math.random() - 0.5)), 0.5, 0x8a8a8a, 1.1);
+        if (sp > 6 && Math.random() < dt * 14) s.effects.spark(e.model.wheels[0].spin.getWorldPosition(_c), _b.set((Math.random() - 0.5) * 3, 1 + Math.random() * 2, (Math.random() - 0.5) * 3));
+      }
       if (!fx || !e.model.group.visible) continue;
       const g = e.model.group, p = _c.copy(g.position);
       const fwd = _f.set(0, 0, 1).applyQuaternion(g.quaternion);
@@ -388,22 +406,69 @@ export class Pranks {
     }
   }
 
-  // the botched pit stop, for the rest of the race: a tiny spare that pulls to
-  // one side and wobbles, and less grip and power
-  damage(e) {
-    fitSpare(e.model);
-    if (!e.car || e.handicap) return;
-    const sp = e.car.spec;
-    e.car.spec = { ...sp, mu: sp.mu * 0.84, enginePower: sp.enginePower * 0.9, engineForceMax: sp.engineForceMax * 0.92 };
-    e.handicap = { pull: (this.rnd() < 0.5 ? -1 : 1) * 0.07, wobble: 0.1, t: 0 };
+  // tyres for the rest of the race (see tyres.js): every client draws them, the
+  // car's own driver gets the physics. The latest pit stop wins.
+  setTyres(e, kind) {
+    tyreLook(e.model, kind);
+    e.tyres = kind;
+    if (!e.car) return;
+    e.baseSpec = e.baseSpec || e.burnSpec || e.car.spec;
+    const spec = tyreSpec(e.baseSpec, kind);
+    if (e.burnSpec) e.burnSpec = spec; else e.car.spec = spec;
+    const t = TYRES[kind];
+    e.handicap = t.pull ? { pull: (this.rnd() < 0.5 ? -1 : 1) * t.pull, wobble: t.wobble, drift: t.drift || 0, bumps: !!t.bumps, bump: 0, t: 0 } : null;
   }
 
-  // steering fed through the damage (after the driver or AI has set it)
+  // bad tyres fight the steering (after the driver or AI has set it); a square
+  // wheel thumps the car about as well
   steer(e, dt) {
     const hc = e.handicap, car = e.car;
     hc.t += dt;
     const k = clamp(car.speed / 18, 0, 1);
-    car.input.steer = clamp(car.input.steer + (hc.pull + Math.sin(hc.t * 9.5) * hc.wobble) * k, -1, 1);
+    const pull = hc.pull + Math.sin(hc.t * 0.7) * hc.drift;
+    car.input.steer = clamp(car.input.steer + (pull + Math.sin(hc.t * 9.5) * hc.wobble) * k, -1, 1);
+    if (hc.bumps && car.grounded && car.speed > 3) {
+      hc.bump -= (dt * car.speed) / 4.5;
+      if (hc.bump <= 0) {
+        hc.bump = 1;
+        car.vel.addScaledVector(car.up, 0.9);
+        car.angVel.x += (this.rnd() - 0.5) * 0.8;
+        car.angVel.z += (this.rnd() - 0.5) * 0.8;
+      }
+    }
+  }
+
+  // ---- /pitstopnuke ------------------------------------------------------------------------
+  // A green flash at every wheel, all four fly off, and four wrong ones go on.
+  tyreNuke(targetId) {
+    const s = this.s, e = s.entries.find((x) => x.id === targetId);
+    if (!e || e.out) return;
+    const g = e.model.group;
+    g.updateMatrixWorld(true);
+    for (const w of e.model.wheels) {
+      const p = w.spin.getWorldPosition(new THREE.Vector3());
+      const f = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1), this.radMat.clone());
+      f.position.copy(p);
+      f.userData.size = 1.5;
+      s.renderer.scene.add(f);
+      this.booms.push({ m: f, age: 0 });
+      for (let k = 0; k < 8; k++) s.effects.spark(p, _a.set((Math.random() - 0.5) * 12, Math.random() * 10, (Math.random() - 0.5) * 12));
+      // the old wheel flies off
+      const old = new THREE.Mesh(w.spin.geometry, w.spin.material);
+      old.position.copy(p);
+      old.quaternion.copy(w.spin.getWorldQuaternion(_q));
+      old.scale.copy(w.spin.scale);
+      s.renderer.scene.add(old);
+      const out = p.clone().sub(g.position).setY(0).normalize();
+      this.planks.push({ m: old, keep: true, v: out.multiplyScalar(7 + Math.random() * 5).add(_a.set(0, 8 + Math.random() * 5, 0)), w: new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(16), age: 0 });
+    }
+    for (let k = 0; k < 8; k++) s.effects.puff(_a.copy(g.position).add(_b.set((Math.random() - 0.5) * 3, Math.random(), (Math.random() - 0.5) * 3)), _b.set(0, 2, 0), 1 + Math.random(), 0x6a8a4a, 1.6);
+    const cd = g.position.distanceTo(s.renderer.camera.position);
+    this.app.audio.play(cd < 160 ? 'tyrenuke' : 'blastFar');
+    if (cd < 60) s.camera.shake = Math.max(s.camera.shake, 0.8 * (1 - cd / 60));
+    this.setTyres(e, 'junk');
+    if (e.car) { e.car.vel.addScaledVector(e.car.up, 4); e.car.angVel.x += (Math.random() - 0.5) * 2; e.car.angVel.z += (Math.random() - 0.5) * 2; }
+    if (e === s.player) s.message('TYRES NUKED - GOOD LUCK', 'warn', 2.8);
   }
 
   // ---- time ----------------------------------------------------------------------------
@@ -531,7 +596,7 @@ export class Pranks {
       p.m.position.addScaledVector(p.v, dt);
       p.m.rotation.x += p.w.x * dt; p.m.rotation.y += p.w.y * dt; p.m.rotation.z += p.w.z * dt;
       if (p.age > 1.4) p.m.scale.setScalar(Math.max(0.01, 1 - (p.age - 1.4) / 0.4));
-      if (p.age > 1.8) { s.renderer.scene.remove(p.m); p.m.geometry.dispose(); this.planks.splice(i, 1); }
+      if (p.age > 1.8) { s.renderer.scene.remove(p.m); if (!p.keep) p.m.geometry.dispose(); this.planks.splice(i, 1); }
     }
     this.fx = this.fx.filter((f) => !f(dt));
     // cars sitting out come back when their time's up; missile victims go back
