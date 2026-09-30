@@ -66,6 +66,17 @@ every 20 s. Online the host starts it for everybody.
 - `/yeet <name>` - a giant cat swats them to Mars: a 30 s film of the flight,
   the crash, building a rocket and flying home, while their car sits out.
   Reloads in 45 s.
+- `/superyeet <name>` - the cat is back with rocket fists: one punch sends them
+  past the Moon, Mars, Jupiter, Saturn and Neptune to Pluto, where a UFO lands,
+  aliens teach them to build a bigger rocket, they build it together and fly home.
+  A 60 s film while their car sits out. Once per race.
+- `/fly` - your car grows wings and flies for 10 s: it hovers over the road, turns
+  on the steering with no grip to lose, speeds up on the throttle, and eases back
+  over the road when you let go. Then it settles down and the wings fold. Reloads
+  in 30 s.
+- `/fullbox <name>` - four wooden walls and a roof slam up round their car, then
+  you hit the shot: 200, the box blows apart, and their car crashes and has to be
+  rebuilt (the minigame below). Reloads in 40 s.
 
 - `/crash <name>` - their car crashes spectacularly and burns; they rebuild it in a
   minigame (drag the parts back on, bolt the wheels, get the engine to start -

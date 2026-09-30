@@ -65,9 +65,13 @@ export class Cutscene {
     const key = big + '|' + sub + '|' + style;
     if (key === this.cap) return;
     this.cap = key;
+    this.subEl.textContent = sub;
+    // the big line pops in when it changes (not when only the line under it does)
+    const head = big + '|' + style;
+    if (head === this.capHead) return;
+    this.capHead = head;
     this.capEl.className = 'cut-cap' + (style ? ' ' + style : '');
     this.capEl.textContent = big;
-    this.subEl.textContent = sub;
     if (big) { this.capEl.classList.remove('pop'); void this.capEl.offsetWidth; this.capEl.classList.add('pop'); }
   }
 
@@ -244,6 +248,17 @@ export function planet(r, kind, seed = 1) {
     } else if (kind === 'mars') {
       c.set(n > 0.2 ? 0x8a3a22 : n > -0.1 ? 0xc0582e : 0xd8784a);
       if (y > 0.9) c.set(0xf0e8e0);
+    } else if (kind === 'jupiter' || kind === 'saturn' || kind === 'neptune') {
+      // gas giants: bands by latitude, wobbled by the noise
+      const band = Math.sin(y * 13 + n * 2.5);
+      const pal = { jupiter: [0xd8b890, 0xa8683a, 0xf0e2c8], saturn: [0xe8d49a, 0xc8a868, 0xf4ead0], neptune: [0x3a6ad8, 0x2a4aa8, 0x6a9af0] }[kind];
+      c.set(band > 0.35 ? pal[0] : band > -0.3 ? pal[1] : pal[2]);
+      if (kind === 'jupiter' && Math.hypot(x - 0.5, y + 0.3) < 0.14) c.set(0xc0482a); // the great red spot
+    } else if (kind === 'pluto') {
+      // pale tan and ice, with the big heart
+      c.set(n > 0.15 ? 0x8a6a50 : n > -0.1 ? 0xc8a888 : 0xe8d8c8);
+      const hx = x - 0.35, hy = y + 0.05;
+      if (z > 0 && (Math.hypot(hx - 0.13, hy - 0.1) < 0.2 || Math.hypot(hx + 0.13, hy - 0.1) < 0.2 || (Math.abs(hx) < 0.3 - (0.1 - hy) * 0.9 && hy < 0.1 && hy > -0.25))) c.set(0xf8f4f0);
     } else {
       c.set(n > 0.15 ? 0x8a8a90 : n > -0.1 ? 0xb0b0b6 : 0x9a9aa2);
     }

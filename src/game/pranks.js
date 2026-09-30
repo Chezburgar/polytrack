@@ -5,6 +5,10 @@
 //  /pitstop <name>  that car sits out 10 s in a botched pit stop and drives the
 //                   rest of the race on a tiny spare (pulls, wobbles, less grip)
 //  /yeet <name>     that car sits out 30 s (swatted to Mars by a cat)
+//  /superyeet <name> sits out 60 s (punched to Pluto; once per race)
+//  /fly             your own car grows wings and flies for 10 s
+//  /fullbox <name>  walls and a roof go up round that car, a shot, and it's a
+//                   wreck to be rebuilt
 // Every client runs the same pranks from the host's messages. Whoever drives a
 // car decides what happens to it: the victim's own client, or the host for its
 // AI. The films themselves are src/game/scenes/.
@@ -13,11 +17,14 @@ import { h } from '../ui/dom.js';
 import { clamp, mulberry32, smoothstep } from '../util/math.js';
 import { fitSpare } from './scenes/pitstop.js';
 import { Quiz, Rebuild, makeQuestion, QUIZ_TIME } from './wreck.js';
+import { makeWings, animateWings, FLY_TIME } from './fly.js';
 
 export const MISSILE_TIME = 10;
 export const PITSTOP_TIME = 10;
 export const YEET_TIME = 30;
 export const AD_TIME = 30;
+export const SUPERYEET_TIME = 60;
+const BOX_SHOT = 1.25; // walls up, then the shot
 export const AI_REBUILD = 25; // an AI's rebuild takes this long
 const BURN_TIME = 6; // wrong answer -> boom
 const RANGE = 320, FIRE_EVERY = 0.45, SEE = Math.cos((80 * Math.PI) / 180);
@@ -48,6 +55,12 @@ export class Pranks {
     this.rnd = mulberry32((Date.now() & 0xffff) ^ 0x77);
     this.ui = h('div.pranks', this.armedEl = h('div.pk-armed'), this.warnEl = h('div.pk-warn', '⚠ MISSILE LOCKED ON YOU'));
     this.locks = [];
+    this.wings = new Map(); // car id -> {g, t}
+    this.boxes = [];
+    this.planks = [];
+    this.fx = []; // little one-off effects: (dt) => true when finished
+    this.woodMats = [0xb8834a, 0xa06a38, 0xc8945a].map((c) => new THREE.MeshLambertMaterial({ color: c, flatShading: true }));
+    this.tracerMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xfff0a0).multiplyScalar(3), transparent: true });
     this.flameMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffa040).multiplyScalar(3) });
     this.boomMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffb050).multiplyScalar(2.6), transparent: true });
   }
@@ -149,15 +162,16 @@ export class Pranks {
     if (kind === 'pitstop') this.damage(e);
     if (kind === 'wreck') { e.fx = 0; if (e.car && e.burnSpec) { e.car.spec = e.burnSpec; e.burnSpec = null; } }
     if (e === s.player && this.app.cutscene && !this.app.cutscene.pauses) this.app.endFilm(); // your car's back: so are you
-    if (e === s.player) s.message({ yeet: 'BACK FROM MARS', wreck: 'REBUILT - GO GO GO', advertisement: 'THANKS FOR WATCHING' }[kind] || 'OUT OF THE PITS - HANDLING DAMAGED', 'warn', 2.5);
+    if (e === s.player) s.message({ yeet: 'BACK FROM MARS', superyeet: 'BACK FROM PLUTO', wreck: 'REBUILT - GO GO GO', advertisement: 'THANKS FOR WATCHING' }[kind] || 'OUT OF THE PITS - HANDLING DAMAGED', 'warn', 2.5);
   }
 
   // ---- /crash ---------------------------------------------------------------------------
   // A big crash, seen by everyone; the car's own driver throws it, and it ends up
   // a burning wreck to be rebuilt.
-  crash(targetId) {
+  crash(targetId, msg = 'YOU CRASHED') {
     const s = this.s, e = s.entries.find((x) => x.id === targetId);
     if (!e || e.out) return;
+    this.foldWings(e.id);
     this.boom(e.model.group.position, 1.6);
     e.boomedAt = s.clock; // (the wreck's fire, when it syncs, doesn't go boom again)
     if (!e.car) return;
@@ -167,7 +181,123 @@ export class Pranks {
     e.ghostUntil = 0;
     e.fx = 2;
     e.wreckAt = s.clock + 2.4; // let it tumble, then it's a wreck
-    if (e === s.player) s.message('YOU CRASHED', 'warn', 2.4);
+    if (e === s.player) s.message(msg, 'warn', 2.4);
+  }
+
+  // ---- /fly --------------------------------------------------------------------------------
+  // Wings for everyone to see; the car's own driver flies it (session -> flyStep).
+  fly(byId) {
+    const s = this.s, e = s.entries.find((x) => x.id === byId);
+    if (!e || e.out) return;
+    let w = this.wings.get(byId);
+    if (w) w.t = Math.min(w.t, 0.5); // again: a fresh ten seconds
+    else {
+      const g = makeWings();
+      const box = new THREE.Box3().setFromObject(e.model.body);
+      g.position.set(0, (box.max.y - e.model.group.position.y) * 0.72, -0.1);
+      e.model.group.add(g);
+      w = { e, g, t: 0 };
+      this.wings.set(byId, w);
+    }
+    if (e.car) {
+      if (e.flight) e.flight.t = w.t;
+      else e.flight = { t: 0, yaw: Math.atan2(e.car.fwd.x, e.car.fwd.z), speed: clamp(e.car.forwardSpeed, 30, 72), bank: 0 };
+    }
+    if (e === s.focus || e.model.group.position.distanceTo(s.renderer.camera.position) < 120) this.app.audio.play('wings');
+    if (e === s.player) s.message('YOU CAN FLY', 'go', 1.6);
+  }
+
+  foldWings(id) {
+    const w = this.wings.get(id);
+    if (w && w.t < FLY_TIME - 0.4) w.t = FLY_TIME - 0.4;
+  }
+
+  // ---- /fullbox ----------------------------------------------------------------------------
+  // Four walls and a roof slam up round the car (it's stuck), then the shot from
+  // whoever called it: 200, the walls blow apart, and it's a wreck to rebuild.
+  fullbox(byId, targetId) {
+    const s = this.s, e = s.entries.find((x) => x.id === targetId);
+    if (!e || e.out || e.boxed) return;
+    const by = s.entries.find((x) => x.id === byId) || null;
+    this.foldWings(e.id);
+    if (e.car) { e.flight = null; e.boxed = true; e.car.vel.set(0, 0, 0); e.car.angVel.set(0, 0, 0); }
+    const fwd = _f.set(0, 0, 1).applyQuaternion(e.model.group.quaternion);
+    const g = new THREE.Group();
+    g.rotation.y = Math.atan2(fwd.x, fwd.z);
+    const S = 6.4, H = 3.6, T = 0.3;
+    const pieces = [];
+    const wall = (x, z, ry, i) => {
+      const w = new THREE.Group();
+      w.position.set(x, 0, z); w.rotation.y = ry;
+      for (let k = 0; k < 4; k++) { const p = new THREE.Mesh(new THREE.BoxGeometry(S, H / 4 - 0.06, T), this.woodMats[(k + i) % 3]); p.position.y = (k + 0.5) * (H / 4); w.add(p); pieces.push(p); }
+      for (const px of [-S / 2, S / 2]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.34, H, 0.4), this.woodMats[2]); p.position.set(px, H / 2, 0); w.add(p); pieces.push(p); }
+      w.scale.y = 0.01; w.visible = false;
+      g.add(w);
+      return w;
+    };
+    const parts = [wall(0, S / 2, 0, 0), wall(S / 2, 0, Math.PI / 2, 1), wall(0, -S / 2, 0, 2), wall(-S / 2, 0, Math.PI / 2, 0)];
+    const roof = new THREE.Group();
+    const RW = (S + 0.4) / 5;
+    for (let k = 0; k < 5; k++) { const p = new THREE.Mesh(new THREE.BoxGeometry(S + 0.4, 0.24, RW - 0.05), this.woodMats[k % 3]); p.position.z = (k - 2) * RW; roof.add(p); pieces.push(p); }
+    roof.position.y = H + 0.1; roof.visible = false; roof.scale.set(0.01, 1, 0.01);
+    g.add(roof);
+    parts.push(roof);
+    s.renderer.scene.add(g);
+    this.boxes.push({ e, by, g, parts, pieces, t: 0, shot: false });
+    if (e === s.player) s.message('BOXED IN', 'warn', 1.3);
+  }
+
+  // the shot: a tracer from the caller, 200, planks everywhere, a crash
+  snipe(b) {
+    const s = this.s, e = b.e, cam = s.renderer.camera;
+    e.boxed = null;
+    const to = e.model.group.position.clone(); to.y += 0.8;
+    const src = b.by && b.by !== e && b.by.model.group.visible && !b.by.out ? b.by.model.group.position : null;
+    const from = src ? src.clone().add(_c.set(0, 1.5, 0)) : to.clone().add(_c.set(-40, 30, -50));
+    const len = Math.max(1, from.distanceTo(to));
+    const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, len, 5, 1, true), this.tracerMat.clone());
+    tr.position.copy(from).add(to).multiplyScalar(0.5);
+    tr.quaternion.setFromUnitVectors(UP, _a.copy(to).sub(from).divideScalar(len));
+    s.renderer.scene.add(tr);
+    let age = 0;
+    this.fx.push((dt) => { age += dt; tr.material.opacity = 1 - age / 0.35; if (age < 0.35) return false; s.renderer.scene.remove(tr); tr.geometry.dispose(); tr.material.dispose(); return true; });
+    this.app.audio.play('snipe');
+    // the walls blow outward, plank by plank
+    b.g.updateMatrixWorld(true);
+    const c = b.g.position.clone(); c.y += 1.8;
+    for (const p of b.pieces) {
+      s.renderer.scene.attach(p);
+      const out = p.position.clone().sub(c); out.y = Math.max(0.3, out.y);
+      out.normalize();
+      this.planks.push({ m: p, v: out.multiplyScalar(9 + Math.random() * 9).add(_a.set(0, 4 + Math.random() * 5, 0)), w: _b.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(14).clone(), age: 0 });
+    }
+    s.renderer.scene.remove(b.g);
+    // 200 over the car, for everyone who can see it
+    const dmg = h('div.fb-dmg', '200');
+    this.ui.append(dmg);
+    let da = 0;
+    this.fx.push((dt) => {
+      da += dt;
+      _a.copy(e.model.group.position); _a.y += 2.2 + da * 1.5;
+      _a.project(cam);
+      dmg.style.display = _a.z > 1 ? 'none' : '';
+      dmg.style.transform = `translate(${((_a.x * 0.5 + 0.5) * innerWidth).toFixed(0)}px, ${((-_a.y * 0.5 + 0.5) * innerHeight).toFixed(0)}px) translate(-50%, -50%) scale(${(1 + Math.max(0, 0.25 - da) * 3).toFixed(2)})`;
+      dmg.style.opacity = String(Math.min(1, (1.6 - da) * 2));
+      if (da < 1.6) return false;
+      dmg.remove();
+      return true;
+    });
+    const byName = (b.by?.name || 'Someone').replace(/\s*\(AI\)$/, '');
+    const name = e.name.replace(/\s*\(AI\)$/, '');
+    if (b.by && b.by === s.player) {
+      // the caller's screen: a hitmarker and the callout
+      const hm = h('div.fb-hit'), call = h('div.fb-call', h('b', 'CLIPPED'), h('span', `you fullboxed ${name}`));
+      this.ui.append(hm, call);
+      this.app.audio.play('hitmark');
+      setTimeout(() => hm.remove(), 450);
+      setTimeout(() => call.remove(), 2600);
+    }
+    this.crash(e.id, `${byName.toUpperCase()} FULLBOXED YOU`);
   }
 
   // ---- /precalc -------------------------------------------------------------------------
@@ -370,6 +500,40 @@ export class Pranks {
     }
     this.rebuild?.update(dt);
     this.fires(dt);
+    // wings: open, flap, fold (early if the flight was cut short)
+    for (const [id, w] of this.wings) {
+      w.t += dt;
+      if (w.e.car && !w.e.flight && w.t < FLY_TIME - 0.4) w.t = FLY_TIME - 0.4;
+      animateWings(w.g, w.t);
+      if (w.t >= FLY_TIME) { w.e.model.group.remove(w.g); w.g.traverse((o) => { o.geometry?.dispose(); o.material?.dispose(); }); this.wings.delete(id); }
+    }
+    // boxes: the walls go up one after another, then the roof; then the shot
+    for (let i = this.boxes.length - 1; i >= 0; i--) {
+      const b = this.boxes[i];
+      b.t += dt;
+      const gp = b.e.model.group.position;
+      b.g.position.set(gp.x, gp.y - 0.55, gp.z);
+      const near = gp.distanceTo(s.renderer.camera.position) < 90;
+      b.parts.forEach((w, k) => {
+        const at = 0.05 + k * 0.15;
+        if (b.t < at) return;
+        if (!w.visible) { w.visible = true; if (near) this.app.audio.play('thunk'); }
+        const u = Math.max(0.01, Math.min(1, (b.t - at) / 0.1));
+        if (k < 4) w.scale.y = u; else w.scale.set(u, 1, u);
+      });
+      if (b.e.car && b.e.boxed) { b.e.car.vel.set(0, 0, 0); b.e.car.angVel.set(0, 0, 0); }
+      if (b.t >= BOX_SHOT || b.e.out) { this.boxes.splice(i, 1); if (b.e.out) { b.e.boxed = null; s.renderer.scene.remove(b.g); } else this.snipe(b); }
+    }
+    for (let i = this.planks.length - 1; i >= 0; i--) {
+      const p = this.planks[i];
+      p.age += dt;
+      p.v.y -= 20 * dt;
+      p.m.position.addScaledVector(p.v, dt);
+      p.m.rotation.x += p.w.x * dt; p.m.rotation.y += p.w.y * dt; p.m.rotation.z += p.w.z * dt;
+      if (p.age > 1.4) p.m.scale.setScalar(Math.max(0.01, 1 - (p.age - 1.4) / 0.4));
+      if (p.age > 1.8) { s.renderer.scene.remove(p.m); p.m.geometry.dispose(); this.planks.splice(i, 1); }
+    }
+    this.fx = this.fx.filter((f) => !f(dt));
     // cars sitting out come back when their time's up; missile victims go back
     for (const e of s.entries) {
       if (e.out) { e.model.group.visible = !!e.out.keep; if (s.time >= e.out.until) this.release(e); }
@@ -420,8 +584,9 @@ export class Pranks {
     });
     const l = this.launchers.get(me);
     const left = l ? MISSILE_TIME - l.t : 0;
-    this.armedEl.textContent = left > 0 ? `MISSILES ARMED  ${Math.ceil(left)}` : '';
-    this.armedEl.classList.toggle('on', left > 0);
+    const fw = this.wings.get(me), fly = fw && s.player?.flight ? FLY_TIME - fw.t : 0;
+    this.armedEl.textContent = left > 0 ? `MISSILES ARMED  ${Math.ceil(left)}` : fly > 0 ? `FLYING  ${Math.ceil(fly)}` : '';
+    this.armedEl.classList.toggle('on', left > 0 || fly > 0);
     this.warnEl.classList.toggle('on', this.missiles.some((m) => m.target === s.player));
   }
 
@@ -432,7 +597,11 @@ export class Pranks {
     for (const m of this.missiles) this.s.renderer.scene.remove(m.g);
     for (const b of this.booms) this.s.renderer.scene.remove(b.m);
     for (const l of this.launchers.values()) l.e.model.group.remove(l.g);
-    this.missiles = []; this.booms = []; this.launchers.clear();
+    for (const w of this.wings.values()) w.e.model.group.remove(w.g);
+    for (const b of this.boxes) this.s.renderer.scene.remove(b.g);
+    for (const p of this.planks) this.s.renderer.scene.remove(p.m);
+    for (const f of this.fx) f(99);
+    this.missiles = []; this.booms = []; this.launchers.clear(); this.wings.clear(); this.boxes = []; this.planks = []; this.fx = [];
     this.ui.remove();
   }
 }

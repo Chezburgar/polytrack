@@ -21,6 +21,7 @@ import { collideCars } from '../physics/contact.js';
 import { finishDrift, finishSettle } from './finish.js';
 import { Nuke } from './nuke.js';
 import { Pranks } from './pranks.js';
+import { flyStep, FLY_TIME } from './fly.js';
 
 export const DT = 1 / 120;
 const COUNT_RACE = 3.0;
@@ -237,6 +238,9 @@ export class Session {
           // crashing: nobody's driving any more
           car.input.hold = false; car.input.analog = true;
           car.input.throttle = 0; car.input.brake = 1; car.input.steer = 0; car.input.handbrake = 1;
+        } else if (e.boxed) {
+          // boxed in: going nowhere
+          car.input.hold = true; car.input.throttle = 0; car.input.brake = 1; car.input.steer = 0; car.input.handbrake = 1;
         } else if (e.finishFx) {
           car.input.hold = false;
           finishDrift(car, e.finishFx, dt);
@@ -258,7 +262,12 @@ export class Session {
         if (e.handicap && racing) this.pranks.steer(e, dt); // the botched pit stop
         const rs = this.track.samples[e.prog.index];
         car.rampLeft = rs.kind === 'K' && rs.road ? rs.l : null;
-        car.step(dt);
+        if (e.flight && (e.wreckAt || e.boxed || e.finishFx || !racing)) e.flight = null;
+        if (e.flight) {
+          flyStep(car, e.flight, rs, this.world, dt); // /fly
+          if (e.flight.t >= FLY_TIME) { e.flight = null; e.landedAt = this.clock; e.limits.reset(); }
+        } else if (e.boxed) { car.vel.set(0, 0, 0); car.angVel.set(0, 0, 0); car.speed = car.forwardSpeed = 0; } // /fullbox
+        else car.step(dt);
       } else if (e.kind === 'remote') {
         this._remotePose(e, dt);
       } else if (e.kind === 'ghost') {
@@ -458,6 +467,7 @@ export class Session {
   // back too. There is no manual respawn.
   _autoRespawn(e, dt) {
     if (this.state === 'countdown') return;
+    if (e.flight || e.boxed || this.clock - (e.landedAt ?? -9) < 1) return; // flying, boxed in, just landed
     let why = e.race.finished && !this.track.closed ? null : e.limits.update(e.car, e.prog, dt);
     if (!why && this.clock - (e.lastRespawn || -9) > 1.5 && missedGate(e.race, e.prog, this.track)) why = 'missed';
     if (e.ai?.wantRespawn) { e.ai.wantRespawn = false; why = 'stuck'; }

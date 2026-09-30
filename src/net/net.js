@@ -334,28 +334,35 @@ export class NetSession {
 
   _hostPrank(id, kind, target) {
     const s = this.app.session;
-    if (!s || this.state !== 'racing' || s.state !== 'racing' || !['missile', 'pitstop', 'yeet', 'crash', 'precalc', 'advertisement'].includes(kind)) return;
+    if (!s || this.state !== 'racing' || s.state !== 'racing' || !['missile', 'pitstop', 'yeet', 'crash', 'precalc', 'advertisement', 'fly', 'fullbox', 'superyeet'].includes(kind)) return;
     const no = (text) => { const w = { t: 'chat', sys: true, text }; if (id === this.selfId) this._pushChat(w); else this.t.send(id, w); };
     const who = s.entries.find((e) => e.id === target);
-    if (kind !== 'missile' && (!who || who.id === id || who.kind === 'ghost')) return;
-    if (who && (who.out || who.remoteFx || who.fx || who.quiz)) return no(`${who.name} is already busy.`);
+    const self = kind === 'missile' || kind === 'fly';
+    if (!self && (!who || who.id === id || who.kind === 'ghost')) return;
     const now = performance.now();
+    if (who && (who.out || who.remoteFx || who.fx || who.quiz || now - (who.boxedAt ?? -1e9) < 1600)) return no(`${who.name} is already busy.`);
     this.prankUsed = this.prankUsed || new Map();
     const used = this.prankUsed.get(id) || {};
     if (kind === 'pitstop' && used.pitstop) return no('One pit stop per race.');
-    const cd = { missile: 30000, yeet: 45000, crash: 40000, precalc: 30000, advertisement: 60000 }[kind];
+    if (kind === 'superyeet' && used.superyeet) return no('One super yeet per race.');
+    const cd = { missile: 30000, yeet: 45000, crash: 40000, precalc: 30000, advertisement: 60000, fly: 30000, fullbox: 40000 }[kind];
     if (cd && now - (used[kind] || -1e9) < cd) return no(`/${kind} is still reloading.`);
-    used[kind] = kind === 'pitstop' ? true : now;
+    used[kind] = kind === 'pitstop' || kind === 'superyeet' ? true : now;
+    if (kind === 'fullbox') who.boxedAt = now;
     this.prankUsed.set(id, used);
     const m = { t: 'prank', kind, by: id, target: target || null };
     this.t.broadcast(m);
     this.app.applyPrank(m);
     const name = who ? who.name : '';
+    const byName = s.entries.find((e) => e.id === id)?.name || 'Someone';
     if (kind === 'pitstop') this._sysChat(`🔧 ${name} was called in for a pit stop`);
     if (kind === 'yeet') this._sysChat(`🐈 ${name} was yeeted to Mars`);
     if (kind === 'crash') this._sysChat(`💥 ${name} crashed`);
     if (kind === 'precalc') this._sysChat(`📐 ${name} got a pop quiz`);
     if (kind === 'advertisement') this._sysChat(`📺 ${name} is watching an ad`);
+    if (kind === 'fly') this._sysChat(`🪽 ${byName} grew wings`);
+    if (kind === 'fullbox') this._sysChat(`🎯 ${byName} fullboxed ${name}`);
+    if (kind === 'superyeet') this._sysChat(`🚀 ${name} was super yeeted to Pluto`);
   }
 
   // a missile from somebody's launcher: everyone draws it; the target's own

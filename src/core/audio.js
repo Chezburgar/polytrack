@@ -381,6 +381,15 @@ export class AudioEngine {
       case 'whoosh': this.noiseBurst(2.2, { freq: 300, q: 0.6, vol: 0.18, sweep: 1600 }); break;
       case 'crash': this.noiseBurst(1.6, { freq: 900, q: 0.5, vol: 0.6, type: 'lowpass', sweep: 50 }); this.tone(48, 1, { type: 'sine', vol: 0.5, glide: 26 }); this.noiseBurst(0.4, { freq: 3000, q: 0.6, vol: 0.2, type: 'highpass', when: 0.05 }); break;
       case 'rocket': this.noiseBurst(4.5, { freq: 220, q: 0.5, vol: 0.45, type: 'lowpass', sweep: 900 }); this.tone(60, 3.5, { type: 'sawtooth', vol: 0.08, glide: 110 }); break;
+      // /fly: wings beating open, and a little harp run
+      case 'wings': for (let k = 0; k < 4; k++) this.noiseBurst(0.16, { freq: 500, q: 0.7, vol: 0.22, type: 'lowpass', sweep: 220, when: k * 0.19 }); [72, 76, 79, 84, 88].forEach((n, i) => this.tone(NOTE(n), 0.35, { type: 'triangle', vol: 0.08, when: i * 0.06 })); break;
+      // /fullbox: a wall going up, the shot, the hitmarker
+      case 'thunk': this.noiseBurst(0.09, { freq: 420, q: 1.2, vol: 0.32, type: 'lowpass' }); this.tone(150, 0.1, { type: 'triangle', vol: 0.2, glide: 90 }); break;
+      case 'snipe': this.noiseBurst(0.08, { freq: 2600, q: 0.4, vol: 0.55, type: 'highpass' }); this.noiseBurst(1.3, { freq: 700, q: 0.4, vol: 0.28, type: 'lowpass', sweep: 90, when: 0.02 }); this.tone(90, 0.35, { type: 'sine', vol: 0.3, glide: 40 }); break;
+      case 'hitmark': this.tone(2600, 0.05, { type: 'square', vol: 0.07 }); this.tone(3400, 0.05, { type: 'square', vol: 0.05, when: 0.03 }); break;
+      // /superyeet: the UFO and the aliens
+      case 'ufo': this.tone(300, 3, { type: 'sine', vol: 0.12, glide: 900 }); for (let k = 0; k < 12; k++) this.tone(k % 2 ? 620 : 540, 0.25, { type: 'sine', vol: 0.08, when: k * 0.25 }); break;
+      case 'alien': [88, 93, 84, 96, 91].forEach((n, i) => this.tone(NOTE(n), 0.08, { type: 'square', vol: 0.06, glide: NOTE(n + (i % 2 ? -5 : 5)), when: i * 0.09 })); break;
       case 'checkpoint':
         this.tone(NOTE(79), 0.16, { type: 'triangle', vol: 0.22 });
         this.tone(NOTE(86), 0.3, { type: 'triangle', vol: 0.2, when: 0.08 });
