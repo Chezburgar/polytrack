@@ -334,16 +334,16 @@ export class NetSession {
 
   _hostPrank(id, kind, target) {
     const s = this.app.session;
-    if (!s || this.state !== 'racing' || s.state !== 'racing' || !['missile', 'pitstop', 'yeet'].includes(kind)) return;
+    if (!s || this.state !== 'racing' || s.state !== 'racing' || !['missile', 'pitstop', 'yeet', 'crash', 'precalc', 'advertisement'].includes(kind)) return;
     const no = (text) => { const w = { t: 'chat', sys: true, text }; if (id === this.selfId) this._pushChat(w); else this.t.send(id, w); };
     const who = s.entries.find((e) => e.id === target);
     if (kind !== 'missile' && (!who || who.id === id || who.kind === 'ghost')) return;
-    if (who?.out) return no(`${who.name} is already out.`);
+    if (who && (who.out || who.remoteFx || who.fx || who.quiz)) return no(`${who.name} is already busy.`);
     const now = performance.now();
     this.prankUsed = this.prankUsed || new Map();
     const used = this.prankUsed.get(id) || {};
     if (kind === 'pitstop' && used.pitstop) return no('One pit stop per race.');
-    const cd = { missile: 30000, yeet: 45000 }[kind];
+    const cd = { missile: 30000, yeet: 45000, crash: 40000, precalc: 30000, advertisement: 60000 }[kind];
     if (cd && now - (used[kind] || -1e9) < cd) return no(`/${kind} is still reloading.`);
     used[kind] = kind === 'pitstop' ? true : now;
     this.prankUsed.set(id, used);
@@ -353,6 +353,9 @@ export class NetSession {
     const name = who ? who.name : '';
     if (kind === 'pitstop') this._sysChat(`🔧 ${name} was called in for a pit stop`);
     if (kind === 'yeet') this._sysChat(`🐈 ${name} was yeeted to Mars`);
+    if (kind === 'crash') this._sysChat(`💥 ${name} crashed`);
+    if (kind === 'precalc') this._sysChat(`📐 ${name} got a pop quiz`);
+    if (kind === 'advertisement') this._sysChat(`📺 ${name} is watching an ad`);
   }
 
   // a missile from somebody's launcher: everyone draws it; the target's own
@@ -474,7 +477,7 @@ export class NetSession {
         q: [r4(c.quat.x), r4(c.quat.y), r4(c.quat.z), r4(c.quat.w)],
         v: [r2(c.vel.x), r2(c.vel.y), r2(c.vel.z)],
         st: r2(c.steer), b: c.boost > 0 ? 1 : 0, c: +(e.completion || 0).toFixed(5), l: e.race.lap,
-        g: e.ghostUntil > s.clock ? 1 : 0,
+        g: e.ghostUntil > s.clock ? 1 : 0, fx: e.fx || 0,
       };
       if (this.isHost) this.t.broadcast(msg); else this.t.toHost(msg);
     };

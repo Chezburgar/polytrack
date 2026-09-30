@@ -233,6 +233,10 @@ export class Session {
           const s = e.kind === 'player' ? input : null;
           car.input.throttle = 0; car.input.brake = 0; car.input.hold = true; car.input.steer = s ? s.steer : 0; car.input.handbrake = 0;
           e.rev = s ? s.throttle : 0;
+        } else if (e.wreckAt) {
+          // crashing: nobody's driving any more
+          car.input.hold = false; car.input.analog = true;
+          car.input.throttle = 0; car.input.brake = 1; car.input.steer = 0; car.input.handbrake = 1;
         } else if (e.finishFx) {
           car.input.hold = false;
           finishDrift(car, e.finishFx, dt);
@@ -314,6 +318,7 @@ export class Session {
     e.completion = m.c;
     if (m.l != null) e.race.lap = m.l;
     e.remoteGhost = !!m.g;
+    e.remoteFx = m.fx | 0; // smoking (1) or a burning wreck (2)
     e.lastSeen = this.clock;
   }
 
@@ -382,7 +387,7 @@ export class Session {
     const list = this._bodies || (this._bodies = []);
     list.length = 0;
     for (const e of this.entries) {
-      if (e.kind === 'ghost' || !e.model.group.visible) continue;
+      if (e.kind === 'ghost' || !e.model.group.visible || e.out) continue; // (wrecks too)
       // a ghost period ends only once the car is clear of everybody
       if (e.ghostUntil && e.ghostUntil <= this.clock) {
         const p = e.car ? e.car.pos : e.pos;

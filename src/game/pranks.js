@@ -12,12 +12,16 @@ import * as THREE from 'three';
 import { h } from '../ui/dom.js';
 import { clamp, mulberry32, smoothstep } from '../util/math.js';
 import { fitSpare } from './scenes/pitstop.js';
+import { Quiz, Rebuild, makeQuestion, QUIZ_TIME } from './wreck.js';
 
 export const MISSILE_TIME = 10;
 export const PITSTOP_TIME = 10;
 export const YEET_TIME = 30;
+export const AD_TIME = 30;
+export const AI_REBUILD = 25; // an AI's rebuild takes this long
+const BURN_TIME = 6; // wrong answer -> boom
 const RANGE = 320, FIRE_EVERY = 0.45, SEE = Math.cos((80 * Math.PI) / 180);
-const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _q = new THREE.Quaternion();
+const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _f = new THREE.Vector3(), _q = new THREE.Quaternion();
 const UP = new THREE.Vector3(0, 1, 0);
 const hit = {};
 
@@ -143,8 +147,115 @@ export class Pranks {
       if (e === s.focus) s.camera.snap(s._camTarget(e));
     }
     if (kind === 'pitstop') this.damage(e);
+    if (kind === 'wreck') { e.fx = 0; if (e.car && e.burnSpec) { e.car.spec = e.burnSpec; e.burnSpec = null; } }
     if (e === s.player && this.app.cutscene && !this.app.cutscene.pauses) this.app.endFilm(); // your car's back: so are you
-    if (e === s.player) s.message(kind === 'yeet' ? 'BACK FROM MARS' : 'OUT OF THE PITS - HANDLING DAMAGED', 'warn', 2.5);
+    if (e === s.player) s.message({ yeet: 'BACK FROM MARS', wreck: 'REBUILT - GO GO GO', advertisement: 'THANKS FOR WATCHING' }[kind] || 'OUT OF THE PITS - HANDLING DAMAGED', 'warn', 2.5);
+  }
+
+  // ---- /crash ---------------------------------------------------------------------------
+  // A big crash, seen by everyone; the car's own driver throws it, and it ends up
+  // a burning wreck to be rebuilt.
+  crash(targetId) {
+    const s = this.s, e = s.entries.find((x) => x.id === targetId);
+    if (!e || e.out) return;
+    this.boom(e.model.group.position, 1.6);
+    e.boomedAt = s.clock; // (the wreck's fire, when it syncs, doesn't go boom again)
+    if (!e.car) return;
+    const car = e.car;
+    car.vel.multiplyScalar(0.5).add(_a.set((Math.random() - 0.5) * 10, 16, (Math.random() - 0.5) * 10)).addScaledVector(car.fwd, 6);
+    car.angVel.set((Math.random() - 0.5) * 12, (Math.random() - 0.5) * 8, (Math.random() - 0.5) * 14);
+    e.ghostUntil = 0;
+    e.fx = 2;
+    e.wreckAt = s.clock + 2.4; // let it tumble, then it's a wreck
+    if (e === s.player) s.message('YOU CRASHED', 'warn', 2.4);
+  }
+
+  // ---- /precalc -------------------------------------------------------------------------
+  // The car's own driver answers; a human sees the quiz, an AI guesses.
+  quiz(targetId) {
+    const s = this.s, e = s.entries.find((x) => x.id === targetId);
+    if (!e || !e.car || e.out || e.quiz) return;
+    const q = makeQuestion();
+    if (e === s.player) {
+      e.quiz = new Quiz(this.app, q, (ok) => { e.quiz.done = true; this.quizDone(e, ok); });
+    } else {
+      // the AI thinks it over, then gets it right about two times in three
+      e.quiz = { ai: true, at: s.clock + 3 + Math.random() * 5, ok: Math.random() < 0.65, update() {} };
+    }
+  }
+
+  quizDone(e, ok) {
+    const s = this.s;
+    setTimeout(() => { if (e.quiz?.done || e.quiz?.ai) e.quiz = null; }, 2400);
+    if (e.kind === 'bot' && s.mode !== 'online') this.app.ui.toast(ok ? `${e.name} got the precalc question right` : `${e.name} got it wrong - engine overheating`);
+    if (ok) return;
+    this.burn(e);
+  }
+
+  // wrong answer: smoke, less power, fire, boom
+  burn(e) {
+    if (!e.car || e.out || e.burn) return;
+    e.burn = { t: 0 };
+    e.fx = 1;
+    e.burnSpec = e.car.spec;
+    if (e === this.s.player) this.s.message('ENGINE OVERHEATING', 'warn', 2.5);
+  }
+
+  // the car is a wreck: it sits out until it's rebuilt
+  wreck(e) {
+    const s = this.s;
+    e.burn = null;
+    e.wreckAt = 0;
+    e.fx = 2;
+    const human = e === s.player;
+    e.out = { kind: 'wreck', until: human ? Infinity : s.time + AI_REBUILD, keep: true };
+    e.car.vel.set(0, 0, 0); e.car.angVel.set(0, 0, 0);
+    if (human) {
+      this.app.ui.hudLayer.classList.add('cinema');
+      this.rebuild = new Rebuild(this.app, { paint: e.custom?.paint || '#e8433a' }, () => {
+        this.rebuild = null;
+        this.app.ui.hudLayer.classList.remove('cinema');
+        if (e.out) this.release(e);
+      });
+    }
+  }
+
+  // a fireball (crash, overheat) with sparks and smoke, and its sound
+  boom(p, size = 1) {
+    const s = this.s;
+    const b = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1), this.boomMat.clone());
+    b.position.copy(p);
+    b.userData.size = 7 * size;
+    s.renderer.scene.add(b);
+    this.booms.push({ m: b, age: 0 });
+    for (let k = 0; k < 24; k++) s.effects.spark(p, _a.set((Math.random() - 0.5) * 20, Math.random() * 14, (Math.random() - 0.5) * 20));
+    for (let k = 0; k < 10; k++) s.effects.puff(_a.copy(p).add(_b.set((Math.random() - 0.5) * 3, Math.random() * 2, (Math.random() - 0.5) * 3)), _b.set(0, 2, 0), 1.3 + Math.random(), 0x3a3a3a, 1.8);
+    const cd = p.distanceTo(s.renderer.camera.position);
+    this.app.audio.play(cd < 160 ? 'blast' : 'blastFar');
+    if (cd < 80) s.camera.shake = Math.max(s.camera.shake, 1.5 * (1 - cd / 80));
+  }
+
+  // smoke and fire on cars that are overheating (1) or wrecked (2), local or remote
+  fires(dt) {
+    const s = this.s;
+    for (const e of s.entries) {
+      const fx = e.car ? e.fx || 0 : e.remoteFx || 0;
+      if (e.kind === 'remote' && fx === 2 && e.lastFx !== 2 && !(s.clock - (e.boomedAt ?? -9) < 4)) this.boom(e.model.group.position, 1.3);
+      e.lastFx = fx;
+      if (!fx || !e.model.group.visible) continue;
+      const g = e.model.group, p = _c.copy(g.position);
+      const fwd = _f.set(0, 0, 1).applyQuaternion(g.quaternion);
+      if (fx === 1) {
+        // smoke from under the bonnet, thicker and darker as it goes
+        const k = e.burn ? Math.min(1, e.burn.t / BURN_TIME) : 0.5;
+        if (Math.random() < dt * (10 + 20 * k)) s.effects.puff(_a.copy(p).addScaledVector(fwd, 1.4).add(_b.set(0, 0.7, 0)), _b.set((Math.random() - 0.5), 2 + k * 2, (Math.random() - 0.5)), 0.5 + k * 0.9, k > 0.5 ? 0x2a2a2a : 0x9a9a9a, 1.4);
+        if (k > 0.55 && Math.random() < dt * 16) s.effects.spark(_a.copy(p).addScaledVector(fwd, 1.3).add(_b.set(0, 0.6, 0)), _b.set((Math.random() - 0.5) * 3, 3 + Math.random() * 3, (Math.random() - 0.5) * 3));
+      } else {
+        // a burning wreck
+        if (Math.random() < dt * 22) s.effects.puff(_a.copy(p).add(_b.set((Math.random() - 0.5) * 2, 0.8, (Math.random() - 0.5) * 3)), _b.set((Math.random() - 0.5), 3, (Math.random() - 0.5)), 0.9 + Math.random() * 0.8, 0x1e1e1e, 2.2);
+        if (Math.random() < dt * 24) s.effects.spark(_a.copy(p).add(_b.set((Math.random() - 0.5) * 2, 0.5, (Math.random() - 0.5) * 3)), _b.set((Math.random() - 0.5) * 2, 4 + Math.random() * 3, (Math.random() - 0.5) * 2));
+      }
+    }
   }
 
   // the botched pit stop, for the rest of the race: a tiny spare that pulls to
@@ -229,14 +340,39 @@ export class Pranks {
     this.booms = this.booms.filter((b) => {
       b.age += dt;
       const k = b.age / 0.7;
-      b.m.scale.setScalar(7 * Math.sqrt(Math.min(1, k * 2.5)));
+      b.m.scale.setScalar((b.m.userData.size || 7) * Math.sqrt(Math.min(1, k * 2.5)));
       b.m.material.opacity = 1 - k;
       if (k >= 1) { s.renderer.scene.remove(b.m); b.m.material.dispose(); return false; }
       return true;
     });
+    // quizzes, overheating engines, cars about to become wrecks
+    for (const e of s.entries) {
+      if (e.quiz) {
+        if (e.quiz.ai) { if (s.clock >= e.quiz.at) { const ok = e.quiz.ok; e.quiz = null; this.quizDone(e, ok); } }
+        else if (!e.quiz.done) e.quiz.update(dt);
+      }
+      if (e.burn && e.car && !e.out) {
+        e.burn.t += dt;
+        const k = Math.min(1, e.burn.t / BURN_TIME);
+        e.car.spec = { ...e.burnSpec, enginePower: e.burnSpec.enginePower * (1 - 0.65 * k), engineForceMax: e.burnSpec.engineForceMax * (1 - 0.5 * k) };
+        if (e.burn.t >= BURN_TIME) {
+          this.boom(e.car.pos, 1.4);
+          e.car.vel.add(_a.set((Math.random() - 0.5) * 6, 11, (Math.random() - 0.5) * 6));
+          e.car.angVel.set((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 6, (Math.random() - 0.5) * 10);
+          e.burn = null;
+          e.fx = 2;
+          e.wreckAt = s.clock + 1.8;
+          if (e === s.player) s.message('KABOOM', 'warn', 2);
+        }
+      }
+      // a wreck once it's come down (or has been tumbling far too long)
+      if (e.wreckAt && s.clock >= e.wreckAt && e.car && !e.out && ((e.car.grounded && e.car.speed < 6) || s.clock >= e.wreckAt + 4)) this.wreck(e);
+    }
+    this.rebuild?.update(dt);
+    this.fires(dt);
     // cars sitting out come back when their time's up; missile victims go back
     for (const e of s.entries) {
-      if (e.out) { e.model.group.visible = false; if (s.time >= e.out.until) this.release(e); }
+      if (e.out) { e.model.group.visible = !!e.out.keep; if (s.time >= e.out.until) this.release(e); }
       if (e.sendBack && s.clock >= e.sendBack) { e.sendBack = 0; if (e.car && !e.out) { s.respawn(e, 'missed'); if (e === s.player) s.message('MISSILE HIT - BACK TO CHECKPOINT', 'warn', 2.4); } }
     }
     this.hud();
@@ -290,6 +426,9 @@ export class Pranks {
   }
 
   dispose() {
+    for (const e of this.s.entries) if (e.quiz && !e.quiz.ai && !e.quiz.done) e.quiz.dispose();
+    this.rebuild?.dispose();
+    this.rebuild = null;
     for (const m of this.missiles) this.s.renderer.scene.remove(m.g);
     for (const b of this.booms) this.s.renderer.scene.remove(b.m);
     for (const l of this.launchers.values()) l.e.model.group.remove(l.g);

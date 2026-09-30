@@ -298,6 +298,13 @@ export class AudioEngine {
     this.noiseBurst(0.12, { freq: 400, vol: 0.12 * k, type: 'lowpass' });
   }
 
+  // one note of a jingle (MIDI number), `when` seconds from now
+  note(n, dur = 0.2, when = 0) {
+    if (!this.ready) return;
+    this.tone(NOTE(n), dur, { type: 'square', vol: 0.06, when });
+    this.tone(NOTE(n - 12), dur, { type: 'triangle', vol: 0.08, when });
+  }
+
   // an air-raid siren wailing up and down for `secs`
   siren(secs = 3) {
     if (!this.ready) return;
@@ -353,6 +360,12 @@ export class AudioEngine {
     if (!this.ready) return;
     switch (name) {
       // ---- pranks and their films ----
+      case 'quiz': [0, 0.1, 0.2].forEach((w, i) => this.tone(NOTE(76 + i * 4), 0.12, { type: 'square', vol: 0.07, when: w })); break;
+      case 'ding': this.tone(NOTE(84), 0.2, { type: 'triangle', vol: 0.2 }); this.tone(NOTE(91), 0.4, { type: 'triangle', vol: 0.18, when: 0.12 }); break;
+      case 'buzz': this.tone(110, 0.45, { type: 'sawtooth', vol: 0.14 }); this.tone(116, 0.45, { type: 'square', vol: 0.06 }); break;
+      case 'ratchet': for (let k = 0; k < 4; k++) this.noiseBurst(0.03, { freq: 3200, q: 2, vol: 0.12, when: k * 0.05 }); break;
+      case 'crank': for (let k = 0; k < 8; k++) this.tone(60, 0.08, { type: 'sawtooth', vol: 0.1, when: k * 0.11 }); break;
+      case 'cough': this.noiseBurst(0.18, { freq: 300, q: 0.8, vol: 0.35, type: 'lowpass' }); this.noiseBurst(0.22, { freq: 260, q: 0.8, vol: 0.3, type: 'lowpass', when: 0.3 }); break;
       case 'lock': [0, 0.12, 0.24].forEach((w) => this.tone(1760, 0.07, { type: 'square', vol: 0.08, when: w })); break;
       case 'missile': this.noiseBurst(0.7, { freq: 600, q: 0.8, vol: 0.22, sweep: 3200 }); this.tone(220, 0.5, { type: 'sawtooth', vol: 0.05, glide: 880 }); break;
       case 'blast': this.noiseBurst(1.4, { freq: 700, q: 0.5, vol: 0.55, type: 'lowpass', sweep: 60 }); this.tone(55, 0.9, { type: 'sine', vol: 0.5, glide: 30 }); break;

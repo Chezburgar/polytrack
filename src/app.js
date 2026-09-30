@@ -16,7 +16,8 @@ import { randomBotCar, BOT_NAMES } from './car/presets.js';
 import { sanitize, buildDef } from './track/custom.js';
 import { RaceIntro } from './game/intro.js';
 import { pickTarget } from './game/nuke.js';
-import { findCar, PITSTOP_TIME, YEET_TIME } from './game/pranks.js';
+import { findCar, PITSTOP_TIME, YEET_TIME, AD_TIME } from './game/pranks.js';
+import { AdScene } from './game/scenes/ad.js';
 import { PitstopScene } from './game/scenes/pitstop.js';
 import { YeetScene } from './game/scenes/yeet.js';
 import { getTheme } from './track/themes.js';
@@ -25,7 +26,7 @@ import { loadCityMap } from './track/maps/index.js';
 export const VERSION = '1.0.0';
 const NO_INPUT = { throttle: 0, brake: 0, steer: 0, handbrake: 0, analog: false, lookBack: false };
 export const NUKE_COOLDOWN = 20; // seconds between one player's nukes
-export const PRANK_COOLDOWN = { missile: 30, yeet: 45 }; // /pitstop: once a race
+export const PRANK_COOLDOWN = { missile: 30, yeet: 45, crash: 40, precalc: 30, advertisement: 60 }; // /pitstop: once a race
 
 export const DEFAULT_SETTINGS = {
   quality: 'auto', camera: 'chase', fov: 70, units: 'kmh', master: 0.8, music: 0.5, sfx: 0.8,
@@ -184,6 +185,9 @@ export class App {
     else if (cmd === '/missile') this.prank('missile');
     else if (cmd === '/pitstop') this.prank('pitstop', arg);
     else if (cmd === '/yeet') this.prank('yeet', arg);
+    else if (cmd === '/crash') this.prank('crash', arg);
+    else if (cmd === '/precalc') this.prank('precalc', arg);
+    else if (cmd === '/advertisement' || cmd === '/ad') this.prank('advertisement', arg);
     return true;
   }
 
@@ -203,7 +207,7 @@ export class App {
         return;
       }
       target = f.car;
-      if (target.out) { this.ui.toast(`${target.name} is already out`); return; }
+      if (target.out || target.fx || target.quiz || target.burn) { this.ui.toast(`${target.name} is already busy`); return; }
       if (target.race.finished) { this.ui.toast(`${target.name} has already finished`); return; }
     }
     if (s.mode === 'online' && this.net) { this.net.prank(kind, target?.id); return; }
@@ -220,18 +224,22 @@ export class App {
     const s = this.session;
     if (!s) return;
     if (m.kind === 'missile') { s.pranks.arm(m.by); return; }
-    const secs = m.kind === 'pitstop' ? PITSTOP_TIME : YEET_TIME;
+    const who = s.entries.find((x) => x.id === m.target);
+    const nm = who ? who.name.replace(/\s*\(AI\)$/, '') : '';
+    if (m.kind === 'crash') { s.pranks.crash(m.target); if (who !== s.player) this.ui.toast(`${nm} crashed`); return; }
+    if (m.kind === 'precalc') { s.pranks.quiz(m.target); if (who !== s.player) this.ui.toast(`${nm} got a precalc question`); return; }
+    const secs = m.kind === 'pitstop' ? PITSTOP_TIME : m.kind === 'advertisement' ? AD_TIME : YEET_TIME;
     const e = s.pranks.sendOut(m.target, m.kind, secs);
     if (!e) return;
     const name = e.name.replace(/\s*\(AI\)$/, '');
     if (e === s.player) this.playFilm(m.kind, e, { pauses: false, skippable: false }); // you have to watch
     else if (s.mode !== 'online' && m.by === s.player?.id) this.playFilm(m.kind, e, { pauses: true, skippable: true }); // watch what you did
-    else this.ui.toast(m.kind === 'yeet' ? `${name} was yeeted to Mars` : `${name} is stuck in a botched pit stop`);
+    else this.ui.toast(m.kind === 'yeet' ? `${name} was yeeted to Mars` : m.kind === 'advertisement' ? `${name} is watching an ad` : `${name} is stuck in a botched pit stop`);
   }
 
   playFilm(kind, e, opts) {
     this.cutscene?.dispose();
-    const Scene = kind === 'pitstop' ? PitstopScene : YeetScene;
+    const Scene = kind === 'pitstop' ? PitstopScene : kind === 'advertisement' ? AdScene : YeetScene;
     this.cutscene = new Scene(this, e, opts);
     this.ui.hudLayer.classList.add('cinema');
     this.ui.touch.setActive(false);

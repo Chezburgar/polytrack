@@ -67,6 +67,15 @@ every 20 s. Online the host starts it for everybody.
   the crash, building a rocket and flying home, while their car sits out.
   Reloads in 45 s.
 
+- `/crash <name>` - their car crashes spectacularly and burns; they rebuild it in a
+  minigame (drag the parts back on, bolt the wheels, get the engine to start -
+  it stalls the first time). Reloads in 40 s.
+- `/precalc <name>` - a precalc pop quiz, answered with 1-4 while driving. Wrong (or
+  out of time) and the engine overheats, catches fire and blows up, and it's the
+  rebuild minigame. Reloads in 30 s.
+- `/advertisement <name>` (or `/ad`) - 30 s of an ad for PolyBurger, with a Skip Ad
+  button that isn't. Reloads in 60 s.
+
 Online the victim watches the film on their own screen; against the AI you watch
 it yourself (the race waits; Space skips).
 
