@@ -11,8 +11,8 @@
 //                   on gold tyres: much more grip and power (once per race)
 //  /pitstopnuke <name>  their wheels are blown off and four wrong ones go on:
 //                   slow and nearly undrivable (once per race)
-//  /1v1 <name>      a build-and-shoot duel against you (a bot in your name); lose
-//                   and it's the 120 s omega yeet (once per race)
+//  /1v1 <name>      you and them in a build-and-shoot duel (against an AI, a bot
+//                   fights for it); the loser gets the 120 s omega yeet
 //  /fullbox <name>  walls and a roof go up round that car, a shot, and it's a
 //                   wreck to be rebuilt
 // Every client runs the same pranks from the host's messages. Whoever drives a
@@ -169,6 +169,7 @@ export class Pranks {
       e.ghostUntil = s.clock + 2;
       if (e === s.focus) s.camera.snap(s._camTarget(e));
     }
+    if (kind === 'duel' && e === s.player && !this.duelGame?.over) this.closeDuel(); // (it timed out)
     if (kind === 'pitstop') this.setTyres(e, 'spare');
     if (kind === 'pitpro') { this.setTyres(e, 'pro'); if (e.car) e.car.boost = Math.max(e.car.boost || 0, 1.35); }
     if (kind === 'wreck') { e.fx = 0; if (e.car && e.burnSpec) { e.car.spec = e.burnSpec; e.burnSpec = null; } }
@@ -312,24 +313,38 @@ export class Pranks {
   }
 
   // ---- /1v1 --------------------------------------------------------------------------------
-  // The target sits out for the duel. A human plays it; the AI's driver (the host)
-  // rolls for it. Either way the result goes back through app.duelResult.
+  // Both cars sit out while the caller and the target fight it out: two players
+  // over the network, or a player and a bot standing in for an AI. The referee
+  // (the target, or the caller when the target's an AI) reports the result through
+  // app.duelResult; a duel that never ends lets them go after a minute.
   duel(byId, targetId) {
-    const s = this.s, e = this.sendOut(targetId, 'duel', 60);
-    if (!e) return;
-    const by = s.entries.find((x) => x.id === byId);
-    e.duelBy = byId;
-    if (e === s.player) {
-      this.app.ui.hudLayer.classList.add('cinema');
-      const foe = { name: (by?.name || 'Someone').replace(/\s*\(AI\)$/, ''), color: by?.custom?.paint || '#3a6ae8' };
-      const me = { name: 'You', color: e.custom?.paint || '#e8433a' };
-      if (foe.color.toLowerCase() === me.color.toLowerCase()) foe.color = me.color.toLowerCase() === '#3a6ae8' ? '#e8433a' : '#3a6ae8'; // tell them apart
-      this.duelGame = new Duel(this.app, { me, foe }, (won) => {
-        this.duelGame = null;
-        this.app.ui.hudLayer.classList.remove('cinema');
-        this.app.duelResult(e, won);
-      });
-    } else if (e.car) e.duel = { at: s.clock + 8 + this.rnd() * 6, won: this.rnd() < 0.4 };
+    const s = this.s;
+    const a = s.entries.find((x) => x.id === byId), b = s.entries.find((x) => x.id === targetId);
+    if (!a || !b || a === b || a.out || b.out) return;
+    for (const e of [a, b]) this.sendOut(e.id, 'duel', 60);
+    const me = s.player;
+    if (me !== a && me !== b) return;
+    const foe = me === a ? b : a;
+    const mine = { name: 'You', color: me.custom?.paint || '#e8433a' };
+    const theirs = { name: foe.name.replace(/\s*\(AI\)$/, ''), color: foe.custom?.paint || '#3a6ae8' };
+    if (theirs.color.toLowerCase() === mine.color.toLowerCase()) theirs.color = mine.color.toLowerCase() === '#3a6ae8' ? '#e8433a' : '#3a6ae8'; // tell them apart
+    // (online an AI is a 'remote' car on a guest's screen: it's known by its id and name)
+    const person = !(foe.kind === 'bot' || (String(foe.id).startsWith('bot') && / \(AI\)$/.test(foe.name)));
+    const link = person ? { send: (d) => this.app.net?.duelSend(foe.id, d) } : null;
+    this.app.ui.hudLayer.classList.add('cinema');
+    this.duelGame = new Duel(this.app, { me: mine, foe: theirs, link, referee: !person || me === b }, (won, report) => {
+      this.duelGame = null;
+      this.app.ui.hudLayer.classList.remove('cinema');
+      if (report) this.app.duelResult(byId, targetId, won ? me.id : foe.id);
+    });
+    this.duelGame.foeId = foe.id;
+  }
+
+  closeDuel() {
+    if (!this.duelGame) return;
+    this.duelGame.dispose();
+    this.duelGame = null;
+    this.app.ui.hudLayer.classList.remove('cinema');
   }
 
   // lost: out for the length of the film
@@ -600,7 +615,6 @@ export class Pranks {
     }
     this.rebuild?.update(dt);
     this.duelGame?.update(dt);
-    for (const e of s.entries) if (e.duel && s.clock >= e.duel.at) { const won = e.duel.won; e.duel = null; if (e.out?.kind === 'duel') this.app.duelResult(e, won); }
     this.fires(dt);
     // wings: open, flap, fold (early if the flight was cut short)
     for (const [id, w] of this.wings) {

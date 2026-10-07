@@ -134,7 +134,8 @@ export class NetSession {
       case 'chat': this._relayChat(id, m.text); break;
       case 'nuke': this._hostNuke(id); break;
       case 'prank': this._hostPrank(id, m.kind, m.target); break;
-      case 'duel': this._hostDuel(id, m.target, m.won); break;
+      case 'duel': this._hostDuel(id, m.by, m.target, m.winner); break;
+      case 'dl': if (m.to === this.selfId) this.app.duelMsg(id, m.d); else this.t.send(m.to, { t: 'dl', from: id, d: m.d }); break; // a 1v1, relayed
       case 'shot': this.t.broadcast({ ...m, by: id }, id); this._shot({ ...m, by: id }); break;
       case 's': this.t.broadcast(m, id); this._remoteState(m); break;
       case 'fin': this._finish(m.id || id, m.time); break;
@@ -281,6 +282,7 @@ export class NetSession {
       case 'chat': this._pushChat(m); break;
       case 'nuke': this._launch(m); break;
       case 'prank': this.app.applyPrank(m); break;
+      case 'dl': this.app.duelMsg(m.from, m.d); break;
       case 'shot': this._shot(m); break;
       case 'start': this._begin(m); break;
       case 's': this._remoteState(m); break;
@@ -340,12 +342,12 @@ export class NetSession {
     const who = s.entries.find((e) => e.id === target);
     const self = kind === 'missile' || kind === 'fly' || kind === 'pitpro';
     if (!self && (!who || who.id === id || who.kind === 'ghost')) return;
-    if (kind === 'pitpro' && s.entries.find((e) => e.id === id)?.out) return;
+    if ((kind === 'pitpro' || kind === '1v1') && s.entries.find((e) => e.id === id)?.out) return;
     const now = performance.now();
     if (who && (who.out || who.remoteFx || who.fx || who.quiz || now - (who.boxedAt ?? -1e9) < 1600)) return no(`${who.name} is already busy.`);
     this.prankUsed = this.prankUsed || new Map();
     const used = this.prankUsed.get(id) || {};
-    const once = { pitstop: 'One pit stop per race.', superyeet: 'One super yeet per race.', pitpro: 'One pro pit stop per race.', pitnuke: 'One pit stop nuke per race.', '1v1': 'One 1v1 per race.' }[kind];
+    const once = { pitstop: 'One pit stop per race.', superyeet: 'One super yeet per race.', pitpro: 'One pro pit stop per race.', pitnuke: 'One pit stop nuke per race.' }[kind];
     if (once && used[kind]) return no(once);
     const cd = { missile: 30000, yeet: 45000, crash: 40000, precalc: 30000, advertisement: 60000, fly: 30000, fullbox: 40000 }[kind];
     if (cd && now - (used[kind] || -1e9) < cd) return no(`/${kind} is still reloading.`);
@@ -370,21 +372,29 @@ export class NetSession {
     if (kind === 'pitnuke') this._sysChat(`☢️ ${byName} nuked ${name}'s tyres`);
   }
 
-  // a 1v1 is over: the duellist's own client (or the host, for its AI) reports it
-  duelResult(target, won) {
-    if (this.isHost) this._hostDuel(this.selfId, target, won);
-    else this.t.toHost({ t: 'duel', target, won: !!won });
+  // the two players in a 1v1 talk through the host
+  duelSend(to, d) {
+    if (this.isHost) this.t.send(to, { t: 'dl', from: this.selfId, d });
+    else this.t.toHost({ t: 'dl', to, d });
   }
 
-  _hostDuel(id, target, won) {
+  // a 1v1 is over: the referee (the target, or the caller when the target's an AI)
+  // reports it, and the host tells everybody
+  duelResult(by, target, winner) {
+    if (this.isHost) this._hostDuel(this.selfId, by, target, winner);
+    else this.t.toHost({ t: 'duel', by, target, winner });
+  }
+
+  _hostDuel(id, by, target, winner) {
     const s = this.app.session;
-    const e = s?.entries.find((x) => x.id === target);
-    if (!e || e.out?.kind !== 'duel') return;
-    if (id !== target && !(id === this.selfId && e.kind === 'bot')) return; // only the duellist (or the host, for its AI)
-    const m = { t: 'prank', kind: won ? 'duelwon' : 'omega', by: e.duelBy || null, target };
+    const a = s?.entries.find((x) => x.id === by), b = s?.entries.find((x) => x.id === target);
+    if (!a || !b || a.out?.kind !== 'duel' || b.out?.kind !== 'duel' || (winner !== by && winner !== target)) return;
+    if (id !== (b.kind === 'bot' ? by : target)) return; // only the referee
+    const m = { t: 'prank', kind: 'duelend', by, target, winner };
     this.t.broadcast(m);
     this.app.applyPrank(m);
-    this._sysChat(won ? `🏆 ${e.name} won the 1v1` : `🐈 ${e.name} lost the 1v1 and got omega yeeted`);
+    const [w, l] = winner === by ? [a, b] : [b, a];
+    this._sysChat(`🏆 ${w.name} won the 1v1 - 🐈 ${l.name} got omega yeeted`);
   }
 
   // a missile from somebody's launcher: everyone draws it; the target's own

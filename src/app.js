@@ -31,7 +31,7 @@ const NO_INPUT = { throttle: 0, brake: 0, steer: 0, handbrake: 0, analog: false,
 export const NUKE_COOLDOWN = 20; // seconds between one player's nukes
 export const PRANK_COOLDOWN = { missile: 30, yeet: 45, crash: 40, precalc: 30, advertisement: 60, fly: 30, fullbox: 40 };
 // once a race each
-const ONCE = { pitstop: 'One pit stop per race', superyeet: 'One super yeet per race', pitpro: 'One pro pit stop per race', pitnuke: 'One pit stop nuke per race', '1v1': 'One 1v1 per race' };
+const ONCE = { pitstop: 'One pit stop per race', superyeet: 'One super yeet per race', pitpro: 'One pro pit stop per race', pitnuke: 'One pit stop nuke per race' };
 const SELF = new Set(['missile', 'fly', 'pitpro']); // no target
 
 export const DEFAULT_SETTINGS = {
@@ -211,7 +211,7 @@ export class App {
     if (s.state !== 'racing') { this.ui.toast('Wait for the green light'); return; }
     if (this.cutscene) { this.ui.toast('Wait for the film to finish'); return; }
     if (!me || me.race.finished || me.out) { this.ui.toast('Not right now'); return; }
-    if ((kind === 'fly' || kind === 'pitpro') && (me.boxed || me.wreckAt || me.fx || me.burn || me.flight)) { this.ui.toast('Not right now'); return; }
+    if ((kind === 'fly' || kind === 'pitpro' || kind === '1v1') && (me.boxed || me.wreckAt || me.fx || me.burn || me.flight)) { this.ui.toast('Not right now'); return; }
     let target = null;
     if (!SELF.has(kind)) {
       const f = findCar(s, name, me.id);
@@ -243,14 +243,17 @@ export class App {
     const who = s.entries.find((x) => x.id === m.target);
     const nm = clean(who);
     if (m.kind === 'fullbox') { s.pranks.fullbox(m.by, m.target); if (who !== s.player && by !== s.player) this.ui.toast(`${clean(by)} fullboxed ${nm}`); return; }
-    if (m.kind === '1v1') { s.pranks.duel(m.by, m.target); if (who !== s.player) this.ui.toast(by === s.player ? `${nm} is in a 1v1 with you` : `${nm} is in a 1v1 with ${clean(by)}`); return; }
-    if (m.kind === 'duelwon') { if (who?.out?.kind === 'duel') s.pranks.release(who); if (who !== s.player) this.ui.toast(by === s.player ? `${nm} beat you in the 1v1` : `${nm} won the 1v1`); return; }
-    if (m.kind === 'omega') {
-      const e = s.pranks.omega(m.target);
-      if (!e) return;
+    if (m.kind === '1v1') { s.pranks.duel(m.by, m.target); if (who !== s.player && by !== s.player) this.ui.toast(`${clean(by)} and ${nm} are having a 1v1`); return; }
+    if (m.kind === 'duelend') {
+      // the winner's back in the race; the loser gets the omega yeet
+      const win = s.entries.find((x) => x.id === m.winner), lose = win === by ? who : by;
+      if (!win || !lose) return;
+      if ((win === s.player || lose === s.player) && s.pranks.duelGame) s.pranks.duelGame.result(win === s.player);
+      if (win.out?.kind === 'duel') s.pranks.release(win);
+      const e = s.pranks.omega(lose.id);
       if (e === s.player) this.playFilm('omega', e, { pauses: false, skippable: false });
-      else if (s.mode !== 'online' && m.by === s.player?.id) this.playFilm('omega', e, { pauses: true, skippable: true });
-      else this.ui.toast(`${nm} lost the 1v1 and got omega yeeted`);
+      else if (s.mode !== 'online' && win === s.player) this.playFilm('omega', e, { pauses: true, skippable: true });
+      else this.ui.toast(`${clean(win)} won the 1v1 - ${clean(lose)} got omega yeeted`);
       return;
     }
     if (m.kind === 'pitnuke') { s.pranks.tyreNuke(m.target); if (who !== s.player) this.ui.toast(`${nm}'s tyres got nuked`); return; }
@@ -265,13 +268,19 @@ export class App {
     else this.ui.toast({ yeet: `${name} was yeeted to Mars`, superyeet: `${name} was super yeeted to Pluto`, advertisement: `${name} is watching an ad`, pitpro: `${name} is in for a pro pit stop` }[m.kind] || `${name} is stuck in a botched pit stop`);
   }
 
-  // the end of a 1v1, from the duellist's minigame (or the AI's driver); online
-  // the host passes it on to everybody
-  duelResult(e, won) {
+  // the end of a 1v1, from the referee's duel screen; online the host passes it
+  // on to everybody
+  duelResult(by, target, winner) {
     const s = this.session;
     if (!s) return;
-    if (s.mode === 'online' && this.net) this.net.duelResult(e.id, won);
-    else this.applyPrank({ kind: won ? 'duelwon' : 'omega', by: e.duelBy, target: e.id });
+    if (s.mode === 'online' && this.net) this.net.duelResult(by, target, winner);
+    else this.applyPrank({ kind: 'duelend', by, target, winner });
+  }
+
+  // a duel message from the other player, for the duel screen
+  duelMsg(from, d) {
+    const g = this.session?.pranks.duelGame;
+    if (g && g.foeId === from) g.recv(d);
   }
 
   playFilm(kind, e, opts) {

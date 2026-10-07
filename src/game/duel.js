@@ -1,8 +1,13 @@
-// /1v1: a little build-and-shoot duel against whoever called it (a bot plays in
-// their name). Side view: A/D move, W or Space jump, aim with the mouse and click
-// to shoot, Q (or right click) puts up a wall, E a ramp - stand on ramps to take
-// the high ground, peek over walls with a jump. Shield and health, damage
-// numbers, 25 s on the clock (more health left wins). Lose and it's the omega yeet.
+// /1v1: a little build-and-shoot duel between whoever called it and the target -
+// two players over the network, or a player and an AI (a bot fights for it). Side
+// view: A/D move, W or Space jump, aim with the mouse and click to shoot, Q (or right
+// click) puts up a wall, E a ramp - stand on ramps to take the high ground, peek
+// over walls with a jump. Shield and health, damage numbers, 25 s on the clock
+// (more health left wins). The loser gets the omega yeet.
+//
+// Online each player sees themselves on the left: everything from the other side
+// (their state, shots, builds) is mirrored as it arrives. Each client judges hits
+// on its own fighter and tells the other; the referee (the target) calls the result.
 import { h } from '../ui/dom.js';
 
 export const DUEL_TIME = 25;
@@ -13,10 +18,19 @@ const BODY_W = 30, BODY_H = 78;
 const INTRO = 3, OUTRO = 1.8;
 
 export class Duel {
-  // me / foe: { name, color }; done(won) once the result has been shown
-  constructor(app, { me, foe }, done) {
+  // me / foe: { name, color }; link: { send(msg) } to play a person (no link: a bot);
+  // referee: this side calls the result. done(won, report) when the screen closes.
+  constructor(app, { me, foe, link = null, referee = true }, done) {
     this.app = app;
     this.done = done;
+    this.link = link;
+    this.net = !!link;
+    this.referee = referee;
+    this.final = null; // the result, when it's the other side's call
+    this.remote = null;
+    this.heard = 0;
+    this.sendT = 0;
+    this.ids = 0;
     this.t = 0;
     this.left = DUEL_TIME;
     this.over = null; // 'won' | 'lost' once it's decided
@@ -24,7 +38,7 @@ export class Duel {
     this.rnd = Math.random;
     const fighter = (x, face, who, bot) => ({ x, y: FLOOR, vx: 0, vy: 0, face, ground: true, hp: 100, sh: 50, cd: 0, build: 0, flash: 0, name: who.name, color: who.color, bot, aim: 0, mine: [] });
     this.me = fighter(200, 1, me, false);
-    this.foe = fighter(760, -1, foe, true);
+    this.foe = fighter(760, -1, foe, !this.net);
     this.builds = [];
     this.bullets = [];
     this.bits = []; // splinters, sparks
@@ -106,17 +120,26 @@ export class Duel {
     f.build = 0.3;
     const dir = f.face;
     const x = type === 'wall' ? f.x + dir * 46 : f.x + dir * 18;
-    const b = { type, x, base: f.y, dir, hp: type === 'wall' ? 90 : 110, max: type === 'wall' ? 90 : 110, owner: f, born: this.t };
-    if (b.base - (type === 'wall' ? WALL_H : RAMP_H) < 40) return; // up against the sky
-    this.builds.push(b);
-    f.mine.push(b);
+    if (f.y - (type === 'wall' ? WALL_H : RAMP_H) < 40) return; // up against the sky
+    const b = this.addBuild({ type, x, base: f.y, dir, owner: f });
+    if (this.net && f === this.me) this.link.send({ k: 'build', type, x: Math.round(x), base: Math.round(b.base), dir, id: b.id });
     if (f.mine.length > 8) this.breakBuild(f.mine[0], true);
     this.app.audio.play('thunk');
   }
 
+  addBuild(o) {
+    const max = o.type === 'wall' ? 90 : 110;
+    const b = { ...o, hp: max, max, id: ++this.ids, born: this.t };
+    this.builds.push(b);
+    o.owner.mine.push(b);
+    return b;
+  }
+
   breakBuild(b, quiet = false) {
+    if (!this.builds.includes(b)) return;
     this.builds.splice(this.builds.indexOf(b), 1);
     b.owner.mine.splice(b.owner.mine.indexOf(b), 1);
+    if (this.net && b.owner === this.me) this.link.send({ k: 'break', id: b.id });
     if (quiet) return;
     for (let i = 0; i < 10; i++) {
       const x = b.type === 'wall' ? b.x : b.x + b.dir * RAMP_W * Math.random();
@@ -130,7 +153,9 @@ export class Duel {
     f.cd = f.bot ? 0.45 + this.rnd() * 0.2 : 0.3;
     const gx = f.x + f.face * 18, gy = f.y - 50;
     const a = Math.atan2(ay - gy, ax - gx) + (f.bot ? (this.rnd() - 0.5) * 2 * this.ai.err : 0);
-    this.bullets.push({ x: gx, y: gy, vx: Math.cos(a) * BULLET, vy: Math.sin(a) * BULLET, by: f, life: 0.8, trail: [] });
+    const vx = Math.cos(a) * BULLET, vy = Math.sin(a) * BULLET;
+    this.bullets.push({ x: gx, y: gy, vx, vy, by: f, life: 0.8, trail: [] });
+    if (this.net && f === this.me) this.link.send({ k: 'shot', x: Math.round(gx), y: Math.round(gy), vx: Math.round(vx), vy: Math.round(vy) });
     this.app.audio.play('pew');
   }
 
@@ -151,17 +176,21 @@ export class Duel {
     if (this.t > INTRO && !this.over) {
       this.left = Math.max(0, this.left - dt);
       this.control(dt);
-      this.brain(dt);
-      for (const f of [this.me, this.foe]) this.move(f, dt);
+      if (this.net) this.follow(dt); else this.brain(dt);
+      this.move(this.me, dt);
+      if (this.net) { this.foe.cd -= dt; this.foe.build -= dt; this.foe.flash -= dt; } else this.move(this.foe, dt);
       this.fly(dt);
-      if (this.me.hp <= 0 || this.foe.hp <= 0 || this.left <= 0) {
-        const won = this.foe.hp <= 0 ? true : this.me.hp <= 0 ? false : this.me.hp + this.me.sh > this.foe.hp + this.foe.sh;
-        this.finish(won);
-      }
+      if (this.net) this.sync(dt);
+      this.judge();
     } else if (this.over) {
       this.endT += dt;
       this.fly(dt);
-      if (this.endT > OUTRO && !this.reported) { this.reported = true; this.done(this.over === 'won'); this.dispose(); }
+      // the referee reports the result; the other side closes once it's heard it
+      if (this.endT > OUTRO && !this.closed && (this.referee || this.final != null)) {
+        this.closed = true;
+        this.done(this.over === 'won', this.referee);
+        this.dispose();
+      }
     }
     for (const p of this.bits) { p.life -= dt; p.vy += G * 0.6 * dt; p.x += p.vx * dt; p.y += p.vy * dt; }
     this.bits = this.bits.filter((p) => p.life > 0);
@@ -169,6 +198,61 @@ export class Duel {
     this.nums = this.nums.filter((n) => n.life > 0);
     this.clockEl.textContent = `0:${String(Math.ceil(this.left)).padStart(2, '0')}`;
     this.draw();
+  }
+
+  // who's won? Against a bot: decided here. Online: your own death you announce;
+  // the referee calls the rest (a death, the clock, a player who's gone quiet).
+  judge() {
+    const me = this.me, foe = this.foe;
+    if (!this.net) {
+      if (me.hp <= 0 || foe.hp <= 0 || this.left <= 0) this.finish(foe.hp <= 0 ? true : me.hp <= 0 ? false : me.hp + me.sh > foe.hp + foe.sh);
+      return;
+    }
+    if (me.hp <= 0) { this.link.send({ k: 'dead' }); this.finish(false); return; }
+    if (this.referee && (this.foeDead || this.left <= 0 || this.heard > 6)) this.finish(this.foeDead || this.heard > 6 || me.hp + me.sh > foe.hp + foe.sh);
+  }
+
+  // the other side's call has come in
+  result(won) {
+    this.final = won;
+    if (!this.over) this.finish(won);
+    else this.over = won ? 'won' : 'lost';
+  }
+
+  // ---- online ------------------------------------------------------------------------------
+  // the other player, smoothed toward their latest state (a little ahead of it)
+  follow(dt) {
+    const r = this.remote, f = this.foe;
+    this.heard += dt;
+    if (!r) return;
+    const ahead = Math.min(0.1, this.heard);
+    const px = r.x + r.vx * ahead, py = r.ground ? r.y : r.y + r.vy * ahead;
+    f.x += (px - f.x) * Math.min(1, dt * 18);
+    f.y += (Math.min(FLOOR, py) - f.y) * Math.min(1, dt * 18);
+    f.vx = r.vx; f.ground = r.ground; f.face = r.face; f.aim = r.aim;
+  }
+
+  sync(dt) {
+    this.sendT -= dt;
+    if (this.sendT > 0) return;
+    this.sendT = 0.05;
+    const m = this.me;
+    this.link.send({ k: 's', x: Math.round(m.x), y: Math.round(m.y), vx: Math.round(m.vx), vy: Math.round(m.vy), face: m.face, aim: +m.aim.toFixed(2), g: m.ground, hp: Math.ceil(m.hp), sh: Math.ceil(m.sh) });
+  }
+
+  // from the other side (mirrored: they see themselves on the left too)
+  recv(d) {
+    const mx = (x) => W - x;
+    if (d.k === 's') {
+      this.remote = { x: mx(d.x), y: d.y, vx: -d.vx, vy: d.vy, face: -d.face, aim: Math.PI - d.aim, ground: d.g };
+      this.heard = 0;
+      this.foe.hp = d.hp; this.foe.sh = d.sh;
+    } else if (this.over) return;
+    else if (d.k === 'shot') { this.bullets.push({ x: mx(d.x), y: d.y, vx: -d.vx, vy: d.vy, by: this.foe, life: 0.8, trail: [] }); this.app.audio.play('pew'); }
+    else if (d.k === 'build') { this.addBuild({ type: d.type, x: mx(d.x), base: d.base, dir: -d.dir, owner: this.foe, rid: d.id }); this.app.audio.play('thunk'); }
+    else if (d.k === 'break') { const b = this.builds.find((x) => x.rid === d.id); if (b) this.breakBuild(b); }
+    else if (d.k === 'hit') { this.foe.flash = 0.12; this.nums.push({ x: mx(d.x), y: d.y - 10, text: String(d.dmg), life: 0.9, color: d.head ? '#ffd23c' : '#ffffff', big: d.head }); this.app.audio.play('hitmark'); }
+    else if (d.k === 'dead') { this.foeDead = true; this.foe.hp = 0; this.foe.sh = 0; }
   }
 
   finish(won) {
@@ -260,8 +344,10 @@ export class Duel {
           if (Math.abs(b.x - f.x) < BODY_W / 2 + 2 && b.y > f.y - BODY_H && b.y < f.y) {
             b.life = 0;
             const head = b.y < f.y - BODY_H + 20;
-            const base = b.by.bot ? 16 : 22;
-            this.hurt(f, head ? base * 2 : base, b.x, b.y, head);
+            const base = b.by.bot ? 16 : 22, dmg = head ? base * 2 : base;
+            if (!this.net) this.hurt(f, dmg, b.x, b.y, head);
+            else if (f === this.me) { this.hurt(f, dmg, b.x, b.y, head); this.link.send({ k: 'hit', dmg, head, x: Math.round(b.x), y: Math.round(b.y) }); }
+            // (your shot reaching them on your screen: their side decides whether it hit)
             break;
           }
         }
@@ -331,10 +417,11 @@ export class Duel {
       this.big(g, n > 2 ? '1V1' : String(n), W / 2, 250, n > 2 ? 110 : 140, '#ffd23c');
       this.big(g, n > 2 ? `vs ${this.foe.name}` : 'lose and you get omega yeeted', W / 2, 320, 30, '#fff');
     } else if (this.t < INTRO + 0.6) this.big(g, 'FIGHT!', W / 2, 270, 120, '#ffd23c');
+    if (!this.over && this.net && this.left <= 0) this.big(g, 'TIME!', W / 2, 270, 110, '#ffd23c');
     if (this.over) {
       g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(0, 0, W, H);
       this.big(g, this.over === 'won' ? 'YOU WON THE 1V1' : 'ELIMINATED', W / 2, 250, this.over === 'won' ? 80 : 110, this.over === 'won' ? '#ffd23c' : '#ff5a4a');
-      this.big(g, this.over === 'won' ? 'back to the race' : `by ${this.foe.name} · prepare to be omega yeeted`, W / 2, 315, 28, '#fff');
+      this.big(g, this.over === 'won' ? `${this.foe.name} gets omega yeeted` : `by ${this.foe.name} · prepare to be omega yeeted`, W / 2, 315, 28, '#fff');
     }
   }
 
@@ -373,7 +460,8 @@ export class Duel {
     g.fillStyle = '#1a1a1a'; g.fillRect(x + (f.face > 0 ? 1 : -9), y - 80, 8, 5);
     // name
     g.font = '900 13px Arial, sans-serif'; g.textAlign = 'center'; g.fillStyle = '#fff';
-    g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,0.6)'; g.strokeText(f.bot ? f.name : 'YOU', x, y - 98); g.fillText(f.bot ? f.name : 'YOU', x, y - 98);
+    const name = f === this.me ? 'YOU' : f.name;
+    g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,0.6)'; g.strokeText(name, x, y - 98); g.fillText(name, x, y - 98);
   }
 
   dispose() {

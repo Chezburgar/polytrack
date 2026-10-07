@@ -78,13 +78,14 @@ every 20 s. Online the host starts it for everybody.
   past the Moon, Mars, Jupiter, Saturn and Neptune to Pluto, where a UFO lands,
   aliens teach them to build a bigger rocket, they build it together and fly home.
   A 60 s film while their car sits out. Once per race.
-- `/1v1 <name>` - they're pulled out of the race into a build-and-shoot 1v1 against
-  you (a bot plays in your name): A/D move, W jump, aim and click to shoot, Q builds
-  a wall, E a ramp; shield and health, 25 s on the clock. Win and they're straight
-  back. Lose and it's the omega yeet: a 120 s film in which an ascended cat blasts
-  them 20,000,000,000,000,000,000,000 km to the star Nexus, aliens fly them to a
-  training camp in the mountains of Dagestan, three years of training end with the
-  car falling over, three more years, and finally home. Once per race.
+- `/1v1 <name>` - you and them, pulled out of the race into a build-and-shoot 1v1
+  (online it's player against player; against an AI a bot fights for it): A/D
+  move, W jump, aim and click to shoot, Q builds a wall, E a ramp; shield and
+  health, 25 s on the clock (more health left wins). The winner goes straight back.
+  The loser - either of you - gets the omega yeet: a 120 s film in which an ascended
+  cat blasts them 20,000,000,000,000,000,000,000 km to the star Nexus, aliens fly
+  them to a training camp in the mountains of Dagestan, three years of training end
+  with the car falling over, three more years, and finally home. No limit.
 - `/fly` - your car grows wings and flies for 10 s: it hovers over the road, turns
   on the steering with no grip to lose, speeds up on the throttle, and eases back
   over the road when you let go. Then it settles down and the wings fold. Reloads
