@@ -134,6 +134,7 @@ export class NetSession {
       case 'chat': this._relayChat(id, m.text); break;
       case 'nuke': this._hostNuke(id); break;
       case 'prank': this._hostPrank(id, m.kind, m.target); break;
+      case 'duel': this._hostDuel(id, m.target, m.won); break;
       case 'shot': this.t.broadcast({ ...m, by: id }, id); this._shot({ ...m, by: id }); break;
       case 's': this.t.broadcast(m, id); this._remoteState(m); break;
       case 'fin': this._finish(m.id || id, m.time); break;
@@ -334,7 +335,7 @@ export class NetSession {
 
   _hostPrank(id, kind, target) {
     const s = this.app.session;
-    if (!s || this.state !== 'racing' || s.state !== 'racing' || !['missile', 'pitstop', 'yeet', 'crash', 'precalc', 'advertisement', 'fly', 'fullbox', 'superyeet', 'pitpro', 'pitnuke'].includes(kind)) return;
+    if (!s || this.state !== 'racing' || s.state !== 'racing' || !['missile', 'pitstop', 'yeet', 'crash', 'precalc', 'advertisement', 'fly', 'fullbox', 'superyeet', 'pitpro', 'pitnuke', '1v1'].includes(kind)) return;
     const no = (text) => { const w = { t: 'chat', sys: true, text }; if (id === this.selfId) this._pushChat(w); else this.t.send(id, w); };
     const who = s.entries.find((e) => e.id === target);
     const self = kind === 'missile' || kind === 'fly' || kind === 'pitpro';
@@ -344,7 +345,7 @@ export class NetSession {
     if (who && (who.out || who.remoteFx || who.fx || who.quiz || now - (who.boxedAt ?? -1e9) < 1600)) return no(`${who.name} is already busy.`);
     this.prankUsed = this.prankUsed || new Map();
     const used = this.prankUsed.get(id) || {};
-    const once = { pitstop: 'One pit stop per race.', superyeet: 'One super yeet per race.', pitpro: 'One pro pit stop per race.', pitnuke: 'One pit stop nuke per race.' }[kind];
+    const once = { pitstop: 'One pit stop per race.', superyeet: 'One super yeet per race.', pitpro: 'One pro pit stop per race.', pitnuke: 'One pit stop nuke per race.', '1v1': 'One 1v1 per race.' }[kind];
     if (once && used[kind]) return no(once);
     const cd = { missile: 30000, yeet: 45000, crash: 40000, precalc: 30000, advertisement: 60000, fly: 30000, fullbox: 40000 }[kind];
     if (cd && now - (used[kind] || -1e9) < cd) return no(`/${kind} is still reloading.`);
@@ -365,7 +366,25 @@ export class NetSession {
     if (kind === 'fullbox') this._sysChat(`🎯 ${byName} fullboxed ${name}`);
     if (kind === 'superyeet') this._sysChat(`🚀 ${name} was super yeeted to Pluto`);
     if (kind === 'pitpro') this._sysChat(`🏁 ${byName} is in for a pro pit stop`);
+    if (kind === '1v1') this._sysChat(`🎮 ${byName} challenged ${name} to a 1v1`);
     if (kind === 'pitnuke') this._sysChat(`☢️ ${byName} nuked ${name}'s tyres`);
+  }
+
+  // a 1v1 is over: the duellist's own client (or the host, for its AI) reports it
+  duelResult(target, won) {
+    if (this.isHost) this._hostDuel(this.selfId, target, won);
+    else this.t.toHost({ t: 'duel', target, won: !!won });
+  }
+
+  _hostDuel(id, target, won) {
+    const s = this.app.session;
+    const e = s?.entries.find((x) => x.id === target);
+    if (!e || e.out?.kind !== 'duel') return;
+    if (id !== target && !(id === this.selfId && e.kind === 'bot')) return; // only the duellist (or the host, for its AI)
+    const m = { t: 'prank', kind: won ? 'duelwon' : 'omega', by: e.duelBy || null, target };
+    this.t.broadcast(m);
+    this.app.applyPrank(m);
+    this._sysChat(won ? `🏆 ${e.name} won the 1v1` : `🐈 ${e.name} lost the 1v1 and got omega yeeted`);
   }
 
   // a missile from somebody's launcher: everyone draws it; the target's own

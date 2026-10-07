@@ -17,6 +17,7 @@ import { sanitize, buildDef } from './track/custom.js';
 import { RaceIntro } from './game/intro.js';
 import { pickTarget } from './game/nuke.js';
 import { findCar, PITSTOP_TIME, YEET_TIME, AD_TIME, SUPERYEET_TIME, PITPRO_TIME } from './game/pranks.js';
+import { OmegaYeetScene } from './game/scenes/omega.js';
 import { AdScene } from './game/scenes/ad.js';
 import { PitstopScene } from './game/scenes/pitstop.js';
 import { YeetScene } from './game/scenes/yeet.js';
@@ -30,7 +31,7 @@ const NO_INPUT = { throttle: 0, brake: 0, steer: 0, handbrake: 0, analog: false,
 export const NUKE_COOLDOWN = 20; // seconds between one player's nukes
 export const PRANK_COOLDOWN = { missile: 30, yeet: 45, crash: 40, precalc: 30, advertisement: 60, fly: 30, fullbox: 40 };
 // once a race each
-const ONCE = { pitstop: 'One pit stop per race', superyeet: 'One super yeet per race', pitpro: 'One pro pit stop per race', pitnuke: 'One pit stop nuke per race' };
+const ONCE = { pitstop: 'One pit stop per race', superyeet: 'One super yeet per race', pitpro: 'One pro pit stop per race', pitnuke: 'One pit stop nuke per race', '1v1': 'One 1v1 per race' };
 const SELF = new Set(['missile', 'fly', 'pitpro']); // no target
 
 export const DEFAULT_SETTINGS = {
@@ -191,6 +192,7 @@ export class App {
     else if ((cmd === '/pitstop' && arg.toLowerCase() === 'pro') || cmd === '/pitstoppro') this.prank('pitpro');
     else if (cmd === '/pitstop') this.prank('pitstop', arg);
     else if (cmd === '/pitstopnuke') this.prank('pitnuke', arg);
+    else if (cmd === '/1v1') this.prank('1v1', arg);
     else if (cmd === '/yeet') this.prank('yeet', arg);
     else if (cmd === '/crash') this.prank('crash', arg);
     else if (cmd === '/precalc') this.prank('precalc', arg);
@@ -241,6 +243,16 @@ export class App {
     const who = s.entries.find((x) => x.id === m.target);
     const nm = clean(who);
     if (m.kind === 'fullbox') { s.pranks.fullbox(m.by, m.target); if (who !== s.player && by !== s.player) this.ui.toast(`${clean(by)} fullboxed ${nm}`); return; }
+    if (m.kind === '1v1') { s.pranks.duel(m.by, m.target); if (who !== s.player) this.ui.toast(by === s.player ? `${nm} is in a 1v1 with you` : `${nm} is in a 1v1 with ${clean(by)}`); return; }
+    if (m.kind === 'duelwon') { if (who?.out?.kind === 'duel') s.pranks.release(who); if (who !== s.player) this.ui.toast(by === s.player ? `${nm} beat you in the 1v1` : `${nm} won the 1v1`); return; }
+    if (m.kind === 'omega') {
+      const e = s.pranks.omega(m.target);
+      if (!e) return;
+      if (e === s.player) this.playFilm('omega', e, { pauses: false, skippable: false });
+      else if (s.mode !== 'online' && m.by === s.player?.id) this.playFilm('omega', e, { pauses: true, skippable: true });
+      else this.ui.toast(`${nm} lost the 1v1 and got omega yeeted`);
+      return;
+    }
     if (m.kind === 'pitnuke') { s.pranks.tyreNuke(m.target); if (who !== s.player) this.ui.toast(`${nm}'s tyres got nuked`); return; }
     if (m.kind === 'crash') { s.pranks.crash(m.target); if (who !== s.player) this.ui.toast(`${nm} crashed`); return; }
     if (m.kind === 'precalc') { s.pranks.quiz(m.target); if (who !== s.player) this.ui.toast(`${nm} got a precalc question`); return; }
@@ -253,9 +265,18 @@ export class App {
     else this.ui.toast({ yeet: `${name} was yeeted to Mars`, superyeet: `${name} was super yeeted to Pluto`, advertisement: `${name} is watching an ad`, pitpro: `${name} is in for a pro pit stop` }[m.kind] || `${name} is stuck in a botched pit stop`);
   }
 
+  // the end of a 1v1, from the duellist's minigame (or the AI's driver); online
+  // the host passes it on to everybody
+  duelResult(e, won) {
+    const s = this.session;
+    if (!s) return;
+    if (s.mode === 'online' && this.net) this.net.duelResult(e.id, won);
+    else this.applyPrank({ kind: won ? 'duelwon' : 'omega', by: e.duelBy, target: e.id });
+  }
+
   playFilm(kind, e, opts) {
     this.cutscene?.dispose();
-    const Scene = { pitstop: PitstopScene, advertisement: AdScene, superyeet: SuperYeetScene, pitpro: ProPitScene }[kind] || YeetScene;
+    const Scene = { pitstop: PitstopScene, advertisement: AdScene, superyeet: SuperYeetScene, pitpro: ProPitScene, omega: OmegaYeetScene }[kind] || YeetScene;
     this.cutscene = new Scene(this, e, opts);
     this.ui.hudLayer.classList.add('cinema');
     this.ui.touch.setActive(false);

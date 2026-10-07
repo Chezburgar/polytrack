@@ -602,6 +602,17 @@ kbd.pad { background: rgba(57,198,240,0.14); color: #9fe6ff; }
   linear-gradient(#ff3a2a, #ff3a2a) bottom left / 16px 3px no-repeat, linear-gradient(#ff3a2a, #ff3a2a) bottom left / 3px 16px no-repeat,
   linear-gradient(#ff3a2a, #ff3a2a) bottom right / 16px 3px no-repeat, linear-gradient(#ff3a2a, #ff3a2a) bottom right / 3px 16px no-repeat;
   filter: drop-shadow(0 0 6px rgba(255,40,20,0.8)); }
+/* /1v1: the duel */
+.duel { position: fixed; inset: 0; z-index: 28; pointer-events: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; background: rgba(6,10,20,0.92); font-style: normal; user-select: none; touch-action: none; animation: qzIn 0.35s ease-out; }
+.duel.leave { opacity: 0; transition: opacity 0.4s; }
+.du-head { display: flex; align-items: baseline; gap: 18px; }
+.du-head b { font-size: clamp(22px, 3vw, 38px); font-weight: 900; font-style: italic; letter-spacing: 2px; color: #ffd23c; }
+.du-head i { font-style: normal; font: 900 clamp(20px, 2.4vw, 30px) ui-monospace, Consolas, monospace; color: #fff; }
+.du-canvas { width: min(94vw, calc((100vh - 150px) * 16 / 9)); aspect-ratio: 16 / 9; border: 3px solid #ffd23c; border-radius: 6px; cursor: none; box-shadow: 0 10px 40px rgba(0,0,0,0.6); }
+.du-pad { display: flex; gap: 8px; }
+.du-btn { min-width: 64px; padding: 8px 14px; font: 900 15px Arial, sans-serif; letter-spacing: 1px; color: #fff; background: rgba(255,255,255,0.12); border: 2px solid rgba(255,255,255,0.35); border-radius: 6px; cursor: pointer; }
+.du-btn:active { background: rgba(255,210,60,0.4); }
+.du-help { font-size: 13px; font-weight: 700; letter-spacing: 1px; color: rgba(255,255,255,0.7); }
 /* /pitstop pro: the stopwatch */
 .pit-timer { position: absolute; left: 50%; bottom: 17%; transform: translateX(-50%); padding: 4px 18px; background: rgba(10,10,14,0.85); border: 2px solid #ffc83a; color: #ffc83a; font: 900 clamp(26px, 3.4vw, 44px) ui-monospace, Consolas, monospace; letter-spacing: 2px; opacity: 0; transition: opacity 0.2s; }
 .pit-timer.on { opacity: 1; }

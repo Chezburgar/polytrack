@@ -281,6 +281,34 @@ export function stars(n = 2500, r = 3000, seed = 7) {
   return new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 2.2, sizeAttenuation: false }));
 }
 
+// a little green alien: big head, black eyes, antennae
+export function alien(skin = 0x7ae85a) {
+  const g = person({ suit: 0x4a3aa8, trim: 0x9a8aff, skin });
+  // swap the helmet look for a big bare head
+  for (let i = g.children.length - 1; i >= 0; i--) { const c = g.children[i]; if (c.position.y > 1.6) g.remove(c); }
+  const head = ball(0.42, skin, 0, 2.02, 0, 1); head.scale.set(1, 1.15, 0.95); g.add(head);
+  for (const x of [-1, 1]) {
+    const eye = ball(0.14, 0x0a0a0a, x * 0.17, 2.05, 0.33, 1); eye.scale.set(1, 1.5, 0.6); eye.rotation.z = x * 0.4; g.add(eye);
+    const ant = tube(0.025, 0.025, 0.5, 0x5ac84a, 5); ant.position.set(x * 0.16, 2.62, 0); ant.rotation.z = -x * 0.3; g.add(ant);
+    g.add(ball(0.07, glowMat(0xb8ff6a, 2.2), x * 0.24, 2.87, 0, 0));
+  }
+  return g;
+}
+
+export function ufo() {
+  const g = new THREE.Group();
+  const hull = tube(6, 6.5, 1.2, 0xb8c0cc, 32); hull.position.y = 0.6; g.add(hull);
+  const rim = tube(6.6, 6.6, 0.4, 0x7a8290, 32); rim.position.y = 0.9; g.add(rim);
+  const dome = ball(3, lambert(0x8ae8ff, { transparent: true, opacity: 0.7 }), 0, 1.4, 0, 2); dome.scale.y = 0.7; g.add(dome);
+  const lights = [];
+  for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; const l = ball(0.28, glowMat(i % 2 ? 0xff5a3a : 0x5affb0, 2.5), Math.cos(a) * 6.3, 0.9, Math.sin(a) * 6.3, 0); g.add(l); lights.push(l); }
+  const beam = new THREE.Mesh(new THREE.ConeGeometry(5, 14, 24, 1, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xb8ffb0).multiplyScalar(1.4), transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false }));
+  beam.position.y = -7; beam.visible = false; g.add(beam);
+  const ramp = box(1.6, 0.12, 6, 0x9aa2ae); ramp.position.set(0, -1.4, 8.4); ramp.rotation.x = 0.55; ramp.visible = false; g.add(ramp);
+  g.userData = { lights, beam, ramp };
+  return g;
+}
+
 // a rocket built round a car: returns the group and its parts in build order
 export function rocket() {
   const g = new THREE.Group();

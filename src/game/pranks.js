@@ -11,6 +11,8 @@
 //                   on gold tyres: much more grip and power (once per race)
 //  /pitstopnuke <name>  their wheels are blown off and four wrong ones go on:
 //                   slow and nearly undrivable (once per race)
+//  /1v1 <name>      a build-and-shoot duel against you (a bot in your name); lose
+//                   and it's the 120 s omega yeet (once per race)
 //  /fullbox <name>  walls and a roof go up round that car, a shot, and it's a
 //                   wreck to be rebuilt
 // Every client runs the same pranks from the host's messages. Whoever drives a
@@ -22,6 +24,7 @@ import { clamp, mulberry32, smoothstep } from '../util/math.js';
 import { TYRES, tyreSpec, tyreLook } from './tyres.js';
 import { Quiz, Rebuild, makeQuestion, QUIZ_TIME } from './wreck.js';
 import { makeWings, animateWings, FLY_TIME } from './fly.js';
+import { Duel } from './duel.js';
 
 export const MISSILE_TIME = 10;
 export const PITSTOP_TIME = 10;
@@ -29,6 +32,7 @@ export const YEET_TIME = 30;
 export const AD_TIME = 30;
 export const SUPERYEET_TIME = 60;
 export const PITPRO_TIME = 6;
+export const OMEGA_TIME = 120;
 const BOX_SHOT = 1.25; // walls up, then the shot
 export const AI_REBUILD = 25; // an AI's rebuild takes this long
 const BURN_TIME = 6; // wrong answer -> boom
@@ -169,7 +173,7 @@ export class Pranks {
     if (kind === 'pitpro') { this.setTyres(e, 'pro'); if (e.car) e.car.boost = Math.max(e.car.boost || 0, 1.35); }
     if (kind === 'wreck') { e.fx = 0; if (e.car && e.burnSpec) { e.car.spec = e.burnSpec; e.burnSpec = null; } }
     if (e === s.player && this.app.cutscene && !this.app.cutscene.pauses) this.app.endFilm(); // your car's back: so are you
-    if (e === s.player) s.message({ yeet: 'BACK FROM MARS', superyeet: 'BACK FROM PLUTO', pitpro: 'PRO TYRES ON', wreck: 'REBUILT - GO GO GO', advertisement: 'THANKS FOR WATCHING' }[kind] || 'OUT OF THE PITS - HANDLING DAMAGED', 'warn', 2.5);
+    if (e === s.player) s.message({ yeet: 'BACK FROM MARS', superyeet: 'BACK FROM PLUTO', pitpro: 'PRO TYRES ON', duel: 'YOU WON THE 1V1', omega: 'BACK FROM DAGESTAN', wreck: 'REBUILT - GO GO GO', advertisement: 'THANKS FOR WATCHING' }[kind] || 'OUT OF THE PITS - HANDLING DAMAGED', 'warn', 2.5);
   }
 
   // ---- /crash ---------------------------------------------------------------------------
@@ -305,6 +309,37 @@ export class Pranks {
       setTimeout(() => call.remove(), 2600);
     }
     this.crash(e.id, `${byName.toUpperCase()} FULLBOXED YOU`);
+  }
+
+  // ---- /1v1 --------------------------------------------------------------------------------
+  // The target sits out for the duel. A human plays it; the AI's driver (the host)
+  // rolls for it. Either way the result goes back through app.duelResult.
+  duel(byId, targetId) {
+    const s = this.s, e = this.sendOut(targetId, 'duel', 60);
+    if (!e) return;
+    const by = s.entries.find((x) => x.id === byId);
+    e.duelBy = byId;
+    if (e === s.player) {
+      this.app.ui.hudLayer.classList.add('cinema');
+      const foe = { name: (by?.name || 'Someone').replace(/\s*\(AI\)$/, ''), color: by?.custom?.paint || '#3a6ae8' };
+      const me = { name: 'You', color: e.custom?.paint || '#e8433a' };
+      if (foe.color.toLowerCase() === me.color.toLowerCase()) foe.color = me.color.toLowerCase() === '#3a6ae8' ? '#e8433a' : '#3a6ae8'; // tell them apart
+      this.duelGame = new Duel(this.app, { me, foe }, (won) => {
+        this.duelGame = null;
+        this.app.ui.hudLayer.classList.remove('cinema');
+        this.app.duelResult(e, won);
+      });
+    } else if (e.car) e.duel = { at: s.clock + 8 + this.rnd() * 6, won: this.rnd() < 0.4 };
+  }
+
+  // lost: out for the length of the film
+  omega(targetId) {
+    const s = this.s, e = s.entries.find((x) => x.id === targetId);
+    if (!e) return null;
+    e.out = { kind: 'omega', until: s.time + OMEGA_TIME };
+    e.model.group.visible = false;
+    if (e.car) { e.car.vel.set(0, 0, 0); e.car.angVel.set(0, 0, 0); }
+    return e;
   }
 
   // ---- /precalc -------------------------------------------------------------------------
@@ -564,6 +599,8 @@ export class Pranks {
       if (e.wreckAt && s.clock >= e.wreckAt && e.car && !e.out && ((e.car.grounded && e.car.speed < 6) || s.clock >= e.wreckAt + 4)) this.wreck(e);
     }
     this.rebuild?.update(dt);
+    this.duelGame?.update(dt);
+    for (const e of s.entries) if (e.duel && s.clock >= e.duel.at) { const won = e.duel.won; e.duel = null; if (e.out?.kind === 'duel') this.app.duelResult(e, won); }
     this.fires(dt);
     // wings: open, flap, fold (early if the flight was cut short)
     for (const [id, w] of this.wings) {
@@ -659,6 +696,8 @@ export class Pranks {
     for (const e of this.s.entries) if (e.quiz && !e.quiz.ai && !e.quiz.done) e.quiz.dispose();
     this.rebuild?.dispose();
     this.rebuild = null;
+    this.duelGame?.dispose();
+    this.duelGame = null;
     for (const m of this.missiles) this.s.renderer.scene.remove(m.g);
     for (const b of this.booms) this.s.renderer.scene.remove(b.m);
     for (const l of this.launchers.values()) l.e.model.group.remove(l.g);

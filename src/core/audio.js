@@ -391,6 +391,11 @@ export class AudioEngine {
       case 'ufo': this.tone(300, 3, { type: 'sine', vol: 0.12, glide: 900 }); for (let k = 0; k < 12; k++) this.tone(k % 2 ? 620 : 540, 0.25, { type: 'sine', vol: 0.08, when: k * 0.25 }); break;
       // /pitstopnuke: two warning beeps, a green whump, a geiger counter going mad
       case 'tyrenuke': [0, 0.14].forEach((w) => this.tone(1320, 0.08, { type: 'square', vol: 0.08, when: w })); this.noiseBurst(1.1, { freq: 500, q: 0.5, vol: 0.45, type: 'lowpass', sweep: 60, when: 0.3 }); this.tone(70, 0.8, { type: 'sine', vol: 0.4, glide: 35, when: 0.3 }); for (let k = 0; k < 22; k++) this.noiseBurst(0.012, { freq: 3500, q: 1, vol: 0.14, type: 'highpass', when: 0.5 + k * 0.05 + Math.random() * 0.04 }); break;
+      // /1v1 and the omega yeet
+      case 'pew': this.noiseBurst(0.07, { freq: 1800, q: 0.6, vol: 0.22, type: 'highpass' }); this.tone(520, 0.08, { type: 'square', vol: 0.05, glide: 160 }); break;
+      case 'charge': this.tone(80, 6, { type: 'sawtooth', vol: 0.07, glide: 640 }); this.tone(160, 6, { type: 'sine', vol: 0.1, glide: 1280 }); this.noiseBurst(6, { freq: 200, q: 0.8, vol: 0.12, sweep: 2400 }); break;
+      case 'beam': this.tone(1600, 1.4, { type: 'sawtooth', vol: 0.08, glide: 90 }); this.noiseBurst(1.6, { freq: 1200, q: 0.5, vol: 0.4, type: 'lowpass', sweep: 80 }); this.tone(55, 1.2, { type: 'sine', vol: 0.5, glide: 28 }); break;
+      case 'warp': this.noiseBurst(3.5, { freq: 150, q: 0.7, vol: 0.25, sweep: 3000 }); this.tone(110, 3.5, { type: 'sawtooth', vol: 0.05, glide: 880 }); break;
       case 'alien': [88, 93, 84, 96, 91].forEach((n, i) => this.tone(NOTE(n), 0.08, { type: 'square', vol: 0.06, glide: NOTE(n + (i % 2 ? -5 : 5)), when: i * 0.09 })); break;
       case 'checkpoint':
         this.tone(NOTE(79), 0.16, { type: 'triangle', vol: 0.22 });
